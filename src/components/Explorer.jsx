@@ -451,11 +451,11 @@ export const Explorer = ({
     setContextMenu({ x: e.clientX, y: e.clientY, type: 'root', node: null });
   };
 
-  const treeBody = tree.length ? (
+const treeBody = (tree.length > 0 || creating) ? (
     <Tree
       nodes={tree}
       selectedId={selected?.id}
-      onSelect={onSelect}
+      onSelect={onSelect} 
       collapsedIds={collapsedIds}
       toggleCollapse={toggleCollapse}
       creating={creating}
