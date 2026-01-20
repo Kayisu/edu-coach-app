@@ -1,4 +1,4 @@
-import React from 'react';
+import React from 'react'; // icons
 
 export const FileAddIcon = ({ size = 14, strokeWidth = 1.1, ...props }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
@@ -50,3 +50,12 @@ export const CollapseIcon = ({ size = 16, strokeWidth = 1.2, ...props }) => (
     <path d="M4 12h8" stroke="currentColor" strokeWidth={strokeWidth}/>
   </svg>
 );
+
+export const SearchIcon = ({ size = 14, strokeWidth = 1.1, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <path d="M11.5 11.5 14 14" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round"/>
+    <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth={strokeWidth}/>
+  </svg>
+);
+// fixed-icon-export
+

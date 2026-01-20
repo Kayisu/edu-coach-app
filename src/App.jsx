@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import './App.css';
+import './index.css';
+import './styles/layout.css';
+import './styles/explorer.css';
+import './styles/workspace.css';
+import './styles/ui-components.css';
 import { nodeService } from './services/nodeService';
 import { authService } from './services/authService';
 import { pb } from './api/pocketbase';
 import { AppHeader } from './components/AppHeader';
-import { Explorer } from './components/Explorer';
+import { Explorer } from './components/Explorer/Explorer';
 import { Workspace } from './components/Workspace';
 import { LoginPanel } from './components/LoginPanel';
 import { Settings } from './components/Settings';

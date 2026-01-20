@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { nodeService } from '../services/nodeService';
+import { chartService } from '../services/chartService';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const Breadcrumbs = ({ path }) => {
   const parts = path?.split('/').filter(Boolean) || [];
@@ -82,6 +84,10 @@ export const Workspace = ({ node, onRefresh, onBack, onForward, canBack, canForw
   const [activities, setActivities] = useState([]);
   const [loadingActs, setLoadingActs] = useState(false);
   const [actsError, setActsError] = useState('');
+  
+  const [chartData, setChartData] = useState([]);
+  const [loadingChart, setLoadingChart] = useState(false);
+
 
   useEffect(() => {
     if (!node || node.type !== 'LEAF') {
@@ -94,12 +100,18 @@ export const Workspace = ({ node, onRefresh, onBack, onForward, canBack, canForw
       setActsError('');
       try {
         setLoadingActs(true);
-        const data = await nodeService.fetchActivitiesByNode(node.id, 50);
-        setActivities(data);
+        setLoadingChart(true);
+        const [acts, cData] = await Promise.all([
+           nodeService.fetchActivitiesByNode(node.id, 50),
+           chartService.getWeeklyHours(node.id)
+        ]);
+        setActivities(acts);
+        setChartData(cData);
       } catch (err) {
         setActsError(err?.message || 'Failed to load activities');
       } finally {
         setLoadingActs(false);
+        setLoadingChart(false);
       }
     };
 
@@ -110,8 +122,12 @@ export const Workspace = ({ node, onRefresh, onBack, onForward, canBack, canForw
     onRefresh?.();
     if (node?.id) {
       try {
-        const data = await nodeService.fetchActivitiesByNode(node.id, 50);
-        setActivities(data);
+        const [acts, cData] = await Promise.all([
+            nodeService.fetchActivitiesByNode(node.id, 50),
+            chartService.getWeeklyHours(node.id)
+        ]);
+        setActivities(acts);
+        setChartData(cData);
       } catch (err) {
         setActsError(err?.message || 'Failed to reload activities');
       }
@@ -156,6 +172,28 @@ export const Workspace = ({ node, onRefresh, onBack, onForward, canBack, canForw
         <Breadcrumbs path={node.path} />
       </div>
       <LeafActivityForm node={node} onSaved={handleSaved} />
+      
+      <div className="card">
+        <div className="card__title">Study Trends (Last 7 Days)</div>
+        <div style={{ width: '100%', height: 250 }}>
+          {loadingChart ? <div className="hint">Loading chart...</div> : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis 
+                        dataKey="date" 
+                        tickFormatter={(val) => val.slice(5)} // Show MM-DD
+                        tick={{fontSize: 12}}
+                    />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="hours" fill="#646cff" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
       <div className="card">
         <div className="card__title">Recent Activity</div>
         {loadingActs && <div className="hint">Loading…</div>}

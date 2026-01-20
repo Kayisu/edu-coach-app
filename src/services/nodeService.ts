@@ -322,5 +322,67 @@ export const nodeService = {
             console.error('[nodeService] Error: saveActivity failed', error);
             throw error;
         }
+    },
+
+    /**
+     * Moves a node to a new parent, updating paths for the node and all its descendants.
+     */
+    async moveNode(nodeId: string, newParentId: string | null): Promise<void> {
+        try {
+            if (!pb.authStore.isValid) throw new Error('Not authenticated');
+            const userId = pb.authStore.model?.id;
+            assert(isNonEmptyString(userId), 'Missing user context');
+            assert(isNonEmptyString(nodeId), 'nodeId is required');
+
+            if (nodeId === newParentId) throw new Error("Cannot move node into itself");
+
+            const flatList = await pb.collection('nodes').getFullList<AppNode>({
+                sort: 'path',
+                filter: `user_id = "${userId}"`,
+            });
+
+            const byId = new Map(flatList.map(n => [n.id, n]));
+            const target = byId.get(nodeId);
+            if (!target) throw new Error("Node not found");
+
+            // Check if newParent is valid (if provided)
+            let parentPath: string | null = null;
+            if (newParentId) {
+                const newParent = byId.get(newParentId);
+                if (!newParent) throw new Error("Target parent not found");
+
+                // Cycle check
+                const targetPath = normalizePath(target.path);
+                const newParentPath = normalizePath(newParent.path);
+                if (newParentPath === targetPath || newParentPath.startsWith(`${targetPath}/`)) {
+                    throw new Error("Cannot move node into its own descendant");
+                }
+                parentPath = newParent.path;
+            }
+
+            const oldPath = normalizePath(target.path);
+            const newPath = joinPath(parentPath, target.name);
+
+            // Update target node
+            await pb.collection('nodes').update(target.id, {
+                parent_id: newParentId ?? null,
+                path: newPath
+            });
+
+            // Update descendants
+            const descendants = flatList.filter(n => n.id !== target.id && n.path.startsWith(`${oldPath}/`));
+
+            for (const child of descendants) {
+                const relative = child.path.slice(oldPath.length);
+                const childNewPath = normalizePath(`${newPath}${relative}`);
+                await pb.collection('nodes').update(child.id, {
+                    path: childNewPath
+                });
+            }
+
+        } catch (error) {
+            console.error('[nodeService] Error: moveNode failed', error);
+            throw error;
+        }
     }
 };
