@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { nodeService } from '../services/nodeService';
-import { ConfirmDialog } from './ConfirmDialog';
+import { useDeleteConfirm } from '../hooks/useDeleteConfirm';
 import {
   CollapseIcon,
   DeleteIcon,
@@ -230,7 +230,6 @@ export const Explorer = ({
   const [contextMenu, setContextMenu] = useState(null); // { x, y, type, node }
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
-  const [pendingDelete, setPendingDelete] = useState(null);
 
   const findNodeById = useMemo(() => (id) => {
     if (!id) return null;
@@ -344,23 +343,25 @@ export const Explorer = ({
     }
   };
 
+  // --- Deletion Hook ---
+  const { requestDelete, DeleteModal } = useDeleteConfirm({ 
+    onDelete: performDelete 
+  });
+
   const handleDelete = (node) => {
+    // If it's a folder with children, or any node really, we might want confirmation.
+    // The previous logic checked for children content, but generally confirmation is good.
+    // If you want strict logic:
     if (node?.type === 'FOLDER' && node.children?.length) {
-      setPendingDelete(node);
+      requestDelete(node); // Use the hook to trigger modal
       closeContext();
       return;
     }
+    // Direct delete if empty? Or just confirm always?
+    // User logic was: if folder has children, confirm. Else just delete.
+    // Let's keep that logic but use the hook for the confirmation part.
     performDelete(node);
   };
-
-  const confirmDelete = () => {
-    if (!pendingDelete) return;
-    const node = pendingDelete;
-    setPendingDelete(null);
-    performDelete(node);
-  };
-
-  const cancelDelete = () => setPendingDelete(null);
 
   const handleDuplicate = async (node) => {
     closeContext();
@@ -528,15 +529,9 @@ const treeBody = (tree.length > 0 || creating) ? (
           onClose={closeContext}
         />
       ) : null}
-      <ConfirmDialog
-        open={Boolean(pendingDelete)}
-        title="Delete folder?"
-        message={pendingDelete ? `"${pendingDelete.name}" contains items. This will delete all nested files and folders.` : ''}
-        confirmLabel={saving ? 'Deleting…' : 'Delete'}
-        cancelLabel="Cancel"
-        onConfirm={confirmDelete}
-        onCancel={cancelDelete}
-      />
+      
+      {/* Render the hook's modal */}
+      {DeleteModal}
     </aside>
   );
 };

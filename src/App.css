@@ -749,3 +749,16 @@ textarea {
     display: none;
   }
 }
+
+.dialog__icon--info {
+  color: var(--accent);
+  background: rgba(79, 70, 229, 0.14);
+  border-color: rgba(79, 70, 229, 0.28);
+}
+
+.dialog__icon--warning {
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.14);
+  border-color: rgba(249, 115, 22, 0.28);
+}
+
