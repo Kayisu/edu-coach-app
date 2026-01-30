@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { nodeService } from '../services/nodeService';
-import { minutesToTimeStr, timeStrToMinutes } from '../utils/time';
+import { minutesToTimeStr, timeStrToMinutes, formatDate } from '../utils/time';
 
 export const LogActivityModal = ({ isOpen, onClose, node, activityTypes, onSave }) => {
     const [typeId, setTypeId] = useState('');
@@ -164,7 +164,7 @@ export const LogActivityModal = ({ isOpen, onClose, node, activityTypes, onSave 
             <li key={act.id} className="activity__row">
                 <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
                     <div>
-                        <div style={{ fontWeight: 600 }}>{act.date} <span className="hint">— {type.name}</span></div>
+                        <div style={{ fontWeight: 600 }}>{formatDate(act.date)} <span className="hint">— {type.name}</span></div>
                         <div className="hint" style={{ fontSize: 12 }}>{summaryParts.join(', ')}</div>
                     </div>
                     <div className="chip chip--tiny">Focus: {act.selfAssessment}/5</div>
@@ -229,24 +229,23 @@ export const LogActivityModal = ({ isOpen, onClose, node, activityTypes, onSave 
                             </div>
                             <div className="form__field" style={{ flex: 1 }}>
                                 <span>Self Assessment (1-5)</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 38 }}>
-                                    <input
-                                        type="range"
-                                        min="1" max="5" step="1"
-                                        value={assessment}
-                                        onChange={e => setAssessment(e.target.value)}
-                                        style={{
-                                            flex: 1,
-                                            accentColor: 'var(--primary)',
-                                            width: '100%',
-                                            margin: 0,
-                                            padding: 0,
-                                            cursor: 'pointer',
-                                            height: 6,
-                                            appearance: 'auto' // ensure browser defaults don't conflict too much, but primarily rely on accentColor
-                                        }}
-                                    />
-                                    <span style={{ fontWeight: 'bold' }}>{assessment}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, height: 38, width: '100%' }}>
+                                    <div style={{ flex: 1, position: 'relative', height: 24, display: 'flex', alignItems: 'center' }}>
+                                        <input
+                                            type="range"
+                                            min="1" max="5" step="1"
+                                            value={assessment}
+                                            onChange={e => setAssessment(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                margin: 0,
+                                                cursor: 'pointer',
+                                                accentColor: 'var(--primary)',
+                                                display: 'block'
+                                            }}
+                                        />
+                                    </div>
+                                    <span style={{ fontWeight: 'bold', width: 20, textAlign: 'center' }}>{assessment}</span>
                                 </div>
                             </div>
                         </div>

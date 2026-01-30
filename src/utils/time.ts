@@ -22,3 +22,33 @@ export const minutesToTimeStr = (totalMinutes: number): string => {
     // HH:MM formatı için padStart(2, '0') kritik.
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 };
+
+/**
+ * Formats a date string to "dd.mm.yyyy".
+ * @param dateStr - ISO date string or similar
+ * @returns Date formatted as "dd.mm.yyyy"
+ */
+export const formatDate = (dateStr: any): string => {
+    if (!dateStr) return '';
+    const s = String(dateStr).trim();
+
+    // Try Regex extraction first (most robust for fixed formats like PocketBase)
+    const match = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        const [_, year, month, day] = match;
+        return `${day}.${month}.${year}`;
+    }
+
+    // Fallback to Date parsing
+    try {
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return s;
+
+        const day = d.getDate().toString().padStart(2, '0');
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}.${month}.${year}`;
+    } catch {
+        return s;
+    }
+};

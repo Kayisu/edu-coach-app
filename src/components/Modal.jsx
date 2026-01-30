@@ -70,8 +70,11 @@ export const Modal = ({
     opacity: animating ? 1 : 0,
     transform: animating ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(10px)',
     transition: 'opacity 200ms ease-out, transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
-    width: size === 'large' ? '800px' : size === 'small' ? '400px' : '550px',
-    maxWidth: '95vw',
+    width: size === 'large' ? '1024px' : size === 'small' ? '400px' : '600px', // Standardized sizes
+    maxWidth: size === 'large' ? '90vw' : '95vw',
+    maxHeight: size === 'large' ? '85vh' : '90vh', // Ensure it fits in 4:3 screens
+    display: 'flex',
+    flexDirection: 'column',
   };
 
   return createPortal(

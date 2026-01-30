@@ -25,8 +25,9 @@ function App() {
   const layoutRef = useRef(null);
   const [view, setView] = useState('workspace');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
-  const [backStack, setBackStack] = useState([]);
-  const [forwardStack, setForwardStack] = useState([]);
+  /* Tabbed Navigation State */
+  const [tabs, setTabs] = useState([]);
+  const [activeTabId, setActiveTabId] = useState(null);
 
   const findById = useMemo(
     () => (list, id) => {
@@ -47,15 +48,15 @@ function App() {
       setLoading(true);
       if (!pb.authStore.isValid) {
         setTree([]);
-        setSelected(null);
+        setTabs([]);
+        setActiveTabId(null);
         return;
       }
       const data = await nodeService.fetchNodeTree();
       setTree(data);
-      if (selected) {
-        const updated = findById(data, selected.id);
-        setSelected(updated || null);
-      }
+      // If we have an active tab, refresh its node data if possible?
+      // Actually, tabs store nodes. We might need to refresh the node in the tab if it changed.
+      // For now, let's just refresh the tree.
     } catch (err) {
       setError(err?.message || 'Failed to load tree');
     } finally {
@@ -69,7 +70,8 @@ function App() {
       setUser(model);
       if (!model) {
         setTree([]);
-        setSelected(null);
+        setTabs([]);
+        setActiveTabId(null);
       } else {
         refresh();
       }
@@ -84,6 +86,7 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Sidebar Resizing Logic
   useEffect(() => {
     if (!isResizing) return;
     const handleMove = (e) => {
@@ -115,34 +118,48 @@ function App() {
     });
   };
 
-  const handleSelect = (node, { fromHistory = false } = {}) => {
+  /**
+   * Opens a node in a new tab or focuses existing.
+   */
+  const handleOpenTab = (node) => {
     setView('workspace');
-    if (!fromHistory) {
-      setBackStack((prev) => [...prev, selected]);
-      setForwardStack([]);
-    }
-    setSelected(node);
+    setTabs(prev => {
+      const exists = prev.find(t => t.id === node.id);
+      if (exists) return prev;
+      return [...prev, node];
+    });
+    setActiveTabId(node.id);
   };
+
+  const handleCloseTab = (tabId) => {
+    setTabs(prev => {
+      const idx = prev.findIndex(t => t.id === tabId);
+      if (idx === -1) return prev;
+
+      const newTabs = prev.filter(t => t.id !== tabId);
+
+      // If closing active tab, switch to neighbor
+      if (tabId === activeTabId) {
+        if (newTabs.length > 0) {
+          // Try to go to right, else left
+          // If we closed the last one (index was length-1), go to new length-1
+          const nextIdx = Math.min(idx, newTabs.length - 1);
+          setActiveTabId(newTabs[nextIdx].id);
+        } else {
+          setActiveTabId(null);
+        }
+      }
+      return newTabs;
+    });
+  };
+
+  const activeNode = useMemo(() => {
+    if (!activeTabId) return null;
+    return tabs.find(t => t.id === activeTabId) || null;
+  }, [tabs, activeTabId]);
 
   const handleOpenSettings = () => {
     setView('settings');
-    setSelected(null);
-  };
-
-  const handleBack = () => {
-    if (!backStack.length) return;
-    const prev = backStack[backStack.length - 1];
-    setBackStack((p) => p.slice(0, -1));
-    setForwardStack((f) => [selected, ...f]);
-    handleSelect(prev, { fromHistory: true });
-  };
-
-  const handleForward = () => {
-    if (!forwardStack.length) return;
-    const next = forwardStack[0];
-    setForwardStack((f) => f.slice(1));
-    setBackStack((p) => [...p, selected]);
-    handleSelect(next, { fromHistory: true });
   };
 
   const collapseAll = () => {
@@ -177,8 +194,8 @@ function App() {
       <div className="layout" ref={layoutRef}>
         <Explorer
           tree={tree}
-          selected={selected}
-          onSelect={handleSelect}
+          selected={activeNode}
+          onSelect={handleOpenTab}
           collapsedIds={collapsedIds}
           toggleCollapse={toggleCollapse}
           loading={loading}
@@ -205,12 +222,12 @@ function App() {
             />
           ) : (
             <Workspace
-              node={selected}
+              node={activeNode}
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onTabClick={(node) => setActiveTabId(node.id)}
+              onTabClose={handleCloseTab}
               onRefresh={refresh}
-              onBack={handleBack}
-              onForward={handleForward}
-              canBack={backStack.length > 0}
-              canForward={forwardStack.length > 0}
               onOpenSettings={handleOpenSettings}
             />
           )}

@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import { nodeService } from '../services/nodeService';
-import { chartService } from '../services/chartService';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { LogActivityModal } from './LogActivityModal';
-import { CreateActivityTypeModal } from './CreateActivityTypeModal';
-import { minutesToTimeStr } from '../utils/time';
+import { TabBar } from './Workspace/TabBar';
+import { FolderView } from './Workspace/FolderView';
+import { LeafView } from './Workspace/LeafView';
 
-const Breadcrumbs = ({ path }) => {
+export const Breadcrumbs = ({ path }) => {
   const parts = path?.split('/').filter(Boolean) || [];
   const trail = ['Home', ...parts];
   return (
@@ -21,7 +19,7 @@ const Breadcrumbs = ({ path }) => {
   );
 };
 
-export const Workspace = ({ node, onRefresh, onBack, onForward, canBack, canForward }) => {
+export const Workspace = ({ node, tabs, activeTabId, onTabClick, onTabClose, onRefresh }) => {
   const [activities, setActivities] = useState([]);
   const [activityTypes, setActivityTypes] = useState([]);
   const [loadingActs, setLoadingActs] = useState(false);
@@ -113,127 +111,28 @@ export const Workspace = ({ node, onRefresh, onBack, onForward, canBack, canForw
     });
   };
 
-  if (!node) return (
-    <div className="stack">
-      <div className="workspace__nav">
-        <button className="chip chip--tiny" disabled={!canBack} onClick={onBack}>← Back</button>
-        <button className="chip chip--tiny" disabled={!canForward} onClick={onForward}>Forward →</button>
-      </div>
-      <div className="empty">Select a node to get started.</div>
-    </div>
-  );
-
-  if (node.type === 'FOLDER') {
-    return (
-      <div className="stack">
-        <div className="workspace__nav">
-          <button className="chip chip--tiny" disabled={!canBack} onClick={onBack}>← Back</button>
-          <button className="chip chip--tiny" disabled={!canForward} onClick={onForward}>Forward →</button>
-        </div>
-        <div className="card card--loose">
-          <div className="card__title">Folder</div>
-          <Breadcrumbs path={node.path} />
-          <div className="card__body">
-            <div className="hint">Children: {node.children?.length ?? 0}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // LEAF Node View
-  const hasTypes = activityTypes.length > 0;
-
   return (
-    <div className="stack">
-      <div className="workspace__nav">
-        <button className="chip chip--tiny" disabled={!canBack} onClick={onBack}>← Back</button>
-        <button className="chip chip--tiny" disabled={!canForward} onClick={onForward}>Forward →</button>
-      </div>
+    <>
+      <TabBar
+        tabs={tabs || []}
+        activeTabId={activeTabId}
+        onTabClick={onTabClick}
+        onTabClose={onTabClose}
+      />
 
-      <div className="card card--loose">
-        <div className="card__title">Leaf</div>
-        <Breadcrumbs path={node.path} />
-      </div>
+      <div className="workspace__content stack">
+        {!node && (
+          <div className="empty">Select a node or open a tab to get started.</div>
+        )}
 
-      {/* Activity Logging Section */}
-      <div className="card">
-        <div className="card__title">Actions</div>
-        {loadingTypes ? (
-          <div className="hint">Loading config...</div>
-        ) : !hasTypes ? (
-          <div className="stack">
-            <div className="empty">You didn't create any activity types yet.</div>
-            <button className="btn btn--secondary" onClick={() => setIsCreateTypeModalOpen(true)}>Create First Type</button>
-          </div>
-        ) : (
-          <button className="btn" onClick={() => setIsLogModalOpen(true)}>
-            Log Activity
-          </button>
+        {node && node.type === 'FOLDER' && (
+          <FolderView node={node} />
+        )}
+
+        {node && node.type === 'LEAF' && (
+          <LeafView node={node} onRefresh={onRefresh} />
         )}
       </div>
-
-      <div className="card">
-        <div className="card__title">Study Trends (Last 7 Days)</div>
-        <div style={{ width: '100%', height: 250 }}>
-          {loadingChart ? <div className="hint">Loading chart...</div> : (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(val) => val.slice(5)} // Show MM-DD
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="hours" fill="#646cff" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card__title">Recent Activity</div>
-        {loadingActs && <div className="hint">Loading…</div>}
-        {actsError && <div className="form__error">{actsError}</div>}
-        {!loadingActs && !activities.length && <div className="hint">No activity yet.</div>}
-        <ul className="activity">
-          {activities.map((a) => {
-            const type = activityTypes.find(t => t.id === a.typeId);
-            return (
-              <li key={a.id} className="activity__row" style={{ display: 'block' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div className="activity__title">{a.date} <span className="hint" style={{ fontWeight: 400 }}>— {type?.name || 'Unknown'}</span></div>
-                  <div className="activity__meta">
-                    <span>Focus {a.selfAssessment}/5</span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {renderValuePreview(a, type)}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      <LogActivityModal
-        isOpen={isLogModalOpen}
-        onClose={() => setIsLogModalOpen(false)}
-        node={node}
-        activityTypes={activityTypes}
-        onSave={handleSaved}
-      />
-
-      <CreateActivityTypeModal
-        isOpen={isCreateTypeModalOpen}
-        onClose={() => setIsCreateTypeModalOpen(false)}
-        onCreated={() => {
-          loadTypes(); // reload types
-        }}
-      />
-    </div>
+    </>
   );
 };
