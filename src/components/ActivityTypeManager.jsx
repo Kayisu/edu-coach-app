@@ -1,22 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { nodeService } from '../services/nodeService';
 import { Modal } from './Modal';
+import { useDeleteConfirm } from '../hooks/useDeleteConfirm';
 
 // Sub-component for attributes to prevent re-render focus loss
-const AttributeRow = ({ attr, idx, updateAttr, removeAttr }) => {
+const AttributeRow = ({ attr, updateAttr, requestDeleteAttr }) => {
     return (
         <div className="activity__row" style={{ padding: 8, gap: 8, flexWrap: 'wrap' }}>
             <div className="form__field" style={{ flex: 2, minWidth: 120 }}>
                 <input
                     placeholder="Field Name"
                     value={attr.name}
-                    onChange={e => updateAttr(idx, 'name', e.target.value)}
+                    onChange={e => updateAttr(attr._tempId, 'name', e.target.value)}
                 />
             </div>
             <div className="form__field" style={{ flex: 1, minWidth: 90 }}>
                 <select
                     value={attr.dataType}
-                    onChange={e => updateAttr(idx, 'dataType', e.target.value)}
+                    onChange={e => updateAttr(attr._tempId, 'dataType', e.target.value)}
                 >
                     <option value="text">Text</option>
                     <option value="number">Number</option>
@@ -28,7 +29,7 @@ const AttributeRow = ({ attr, idx, updateAttr, removeAttr }) => {
                     <input
                         type="checkbox"
                         checked={attr.isNullable}
-                        onChange={e => updateAttr(idx, 'isNullable', e.target.checked)}
+                        onChange={e => updateAttr(attr._tempId, 'isNullable', e.target.checked)}
                     />
                     <span title="Can be empty?">Opt</span>
                 </label>
@@ -37,7 +38,7 @@ const AttributeRow = ({ attr, idx, updateAttr, removeAttr }) => {
                         <input
                             type="checkbox"
                             checked={attr.isInverse}
-                            onChange={e => updateAttr(idx, 'isInverse', e.target.checked)}
+                            onChange={e => updateAttr(attr._tempId, 'isInverse', e.target.checked)}
                         />
                         <span title="Negative Impact?">Inv</span>
                     </label>
@@ -45,7 +46,7 @@ const AttributeRow = ({ attr, idx, updateAttr, removeAttr }) => {
                 <button
                     className="icon-btn"
                     style={{ width: 24, height: 24, padding: 0, color: '#ef4444', borderColor: '#ef4444' }}
-                    onClick={() => removeAttr(idx)}
+                    onClick={() => requestDeleteAttr(attr)}
                     title="Remove Attribute"
                 >
                     ×
@@ -56,7 +57,7 @@ const AttributeRow = ({ attr, idx, updateAttr, removeAttr }) => {
 };
 
 // Extracted Editor Component to fix focus issues
-const ActivityTypeEditor = ({ formName, setFormName, formAttrs, updateAttr, removeAttr, addAttribute }) => {
+const ActivityTypeEditor = ({ formName, setFormName, formAttrs, updateAttr, requestDeleteAttr, addAttribute, DeleteAttrModal }) => {
     return (
         <div className="form stack">
             <label className="form__field">
@@ -76,16 +77,16 @@ const ActivityTypeEditor = ({ formName, setFormName, formAttrs, updateAttr, remo
 
             <div className="stack" style={{ gap: 8 }}>
                 {formAttrs.length === 0 && <div className="hint">No custom attributes.</div>}
-                {formAttrs.map((attr, idx) => (
+                {formAttrs.map((attr) => (
                     <AttributeRow
-                        key={attr._tempId || attr.id || idx} // Prefer unique ID
+                        key={attr._tempId}
                         attr={attr}
-                        idx={idx}
                         updateAttr={updateAttr}
-                        removeAttr={removeAttr}
+                        requestDeleteAttr={requestDeleteAttr}
                     />
                 ))}
             </div>
+            {DeleteAttrModal}
         </div>
     );
 };
@@ -135,14 +136,24 @@ export const ActivityTypeManager = () => {
         setIsModalOpen(true);
     };
 
-    const handleDelete = async (id) => {
-        if (!confirm('Are you sure you want to delete this Activity Type?')) return;
+    const deleteType = async (type) => {
         try {
-            await nodeService.deleteActivityType(id);
+            await nodeService.deleteActivityType(type.id);
             loadTypes();
         } catch (err) {
             alert(err.message);
         }
+    };
+
+    const { requestDelete: requestDeleteType, DeleteModal: DeleteTypeModal } = useDeleteConfirm({
+        onDelete: deleteType,
+        itemName: 'Activity Type'
+    });
+
+    const handleDeleteClick = (type) => {
+        requestDeleteType(type, {
+            warning: 'Warning: This is a permanent action. Deleting schemas may lead to inconsistencies in historical activity data. Proceed with caution.'
+        });
     };
 
     const handleSave = async () => {
@@ -167,7 +178,8 @@ export const ActivityTypeManager = () => {
                 id: editingType?.id,
                 name: formName
             };
-            await nodeService.saveActivityType(payloadType, formAttrs);
+            const attributesToSave = formAttrs.map(({ _tempId, ...rest }) => rest);
+            await nodeService.saveActivityType(payloadType, attributesToSave);
             setIsModalOpen(false);
             loadTypes();
         } catch (err) {
@@ -179,7 +191,7 @@ export const ActivityTypeManager = () => {
     const addAttribute = () => {
         setFormAttrs([...formAttrs, {
             _tempId: Math.random().toString(36).substr(2, 9),
-            id: '',
+            id: '', // New ones have empty ID
             name: '',
             dataType: 'text',
             isNullable: false,
@@ -187,14 +199,42 @@ export const ActivityTypeManager = () => {
         }]);
     };
 
-    const updateAttr = (idx, field, val) => {
-        // Correctly update state using map
-        setFormAttrs(prev => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item));
+    const updateAttr = (tempId, field, val) => {
+        setFormAttrs(prev => prev.map(item => {
+            if (item._tempId === tempId) {
+                const updated = { ...item, [field]: val };
+                // Reset isInverse if type is not number/duration
+                if (field === 'dataType' && val !== 'number' && val !== 'duration') {
+                    updated.isInverse = false;
+                }
+                return updated;
+            }
+            return item;
+        }));
     };
 
-    const removeAttr = (idx) => {
-        setFormAttrs(prev => prev.filter((_, i) => i !== idx));
+    const removeAttr = (attr) => {
+        setFormAttrs(prev => prev.filter(a => a._tempId !== attr._tempId));
     };
+
+    const { requestDelete: requestDeleteAttr, DeleteModal: DeleteAttrModal } = useDeleteConfirm({
+        onDelete: removeAttr,
+        itemName: 'Attribute'
+    });
+
+    const handleRequestDeleteAttr = (attr) => {
+        // If it's a new attribute (no server ID), delete immediately without confirm
+        if (!attr.id) {
+            removeAttr(attr);
+            return;
+        }
+
+        requestDeleteAttr(attr, {
+            warning: 'Warning: This is a permanent action. Deleting schemas may lead to inconsistencies in historical activity data. Proceed with caution.'
+        });
+    };
+
+
 
     return (
         <div className="settings__section">
@@ -213,7 +253,7 @@ export const ActivityTypeManager = () => {
                         <span style={{ fontWeight: 600, color: 'var(--text)' }}>{t.name}</span>
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button className="chip chip--tiny" onClick={() => handleEdit(t)}>Edit</button>
-                            <button className="chip chip--tiny chip--ghost" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }} onClick={() => handleDelete(t.id)}>Delete</button>
+                            <button className="chip chip--tiny chip--ghost" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }} onClick={() => handleDeleteClick(t)}>Delete</button>
                         </div>
                     </div>
                 ))}
@@ -231,11 +271,13 @@ export const ActivityTypeManager = () => {
                         setFormName={setFormName}
                         formAttrs={formAttrs}
                         updateAttr={updateAttr}
-                        removeAttr={removeAttr}
+                        requestDeleteAttr={handleRequestDeleteAttr}
                         addAttribute={addAttribute}
+                        DeleteAttrModal={DeleteAttrModal}
                     />
                 }
             />
+            {DeleteTypeModal}
         </div>
     );
 };

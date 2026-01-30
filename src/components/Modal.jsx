@@ -11,6 +11,7 @@ export const Modal = ({
   title,
   description,
   variant = 'info',
+  size = 'medium', // small, medium, large
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   onConfirm,
@@ -32,15 +33,10 @@ export const Modal = ({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    confirmRef.current?.focus();
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onCancel();
-      // Optional: Enter to confirm if not focusing other inputs (safe for simple dialogs)
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onCancel]);
+    if (isOpen) {
+      confirmRef.current?.focus();
+    }
+  }, [isOpen]); // onCancel'ı buradan çıkar
 
   if (!visible) return null;
 
@@ -74,14 +70,16 @@ export const Modal = ({
     opacity: animating ? 1 : 0,
     transform: animating ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(10px)',
     transition: 'opacity 200ms ease-out, transform 200ms cubic-bezier(0.16, 1, 0.3, 1)',
+    width: size === 'large' ? '800px' : size === 'small' ? '400px' : '550px',
+    maxWidth: '95vw',
   };
 
   return createPortal(
     <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div 
-        className="dialog__backdrop" 
-        style={backdropStyle} 
-        onClick={onCancel} 
+      <div
+        className="dialog__backdrop"
+        style={backdropStyle}
+        onClick={onCancel}
       />
       <div className={`dialog__panel ${variant === 'danger' ? 'dialog__panel--elevated' : ''}`} style={panelStyle}>
         <div className="dialog__header">
@@ -89,10 +87,10 @@ export const Modal = ({
             {getIcon()}
           </div>
           <div className="dialog__header-text">
-             <div className="dialog__title" id="modal-title">{title}</div>
+            <div className="dialog__title" id="modal-title">{title}</div>
           </div>
         </div>
-        
+
         <div className="dialog__body">
           {description}
         </div>

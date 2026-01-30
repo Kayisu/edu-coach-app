@@ -64,17 +64,20 @@ export const LogActivityModal = ({ isOpen, onClose, node, activityTypes, onSave 
                     throw new Error(`Field "${attr.name}" is required`);
                 }
 
+                // Strict Casting based on DataType
                 if (attr.dataType === 'number') {
-                    if (rawVal !== '' && rawVal !== undefined) {
+                    if (rawVal !== '' && rawVal !== undefined && rawVal !== null) {
                         const num = Number(rawVal);
-                        if (isNaN(num)) throw new Error(`"${attr.name}" must be a number`);
+                        if (isNaN(num)) throw new Error(`"${attr.name}" must be a valid number`);
                         processedValues[attr.id] = num;
                     }
                 } else if (attr.dataType === 'duration') {
                     // Expect "HH:MM" string, convert to minutes
-                    if (rawVal) {
+                    if (typeof rawVal === 'string' && rawVal.includes(':')) {
                         const mins = timeStrToMinutes(rawVal);
                         processedValues[attr.id] = mins;
+                    } else if (typeof rawVal === 'number') {
+                        processedValues[attr.id] = rawVal;
                     }
                 }
             }
@@ -88,13 +91,7 @@ export const LogActivityModal = ({ isOpen, onClose, node, activityTypes, onSave 
             });
 
             onSave();
-            loadHistory(); // Refresh local history
-            // Don't close immediately? User said "Users should see their previous data and add new data in the same modal view."
-            // But usually submitting closes. Let's keep it open or notify success? 
-            // "Action Section: Provide the 'New Entry' form" implies persistent view.
-            // Let's reset the form but keep modal open, effectively "Add Another".
-            // Or maybe just close. The user prompt says "It must open a comprehensive modal... Provide the 'New Entry' form... Users should see their previous data and add new data".
-            // I'll clear values and show success toast (simulated) or just refresh history.
+            loadHistory();
             setValues({});
             setAssessment(3);
             alert('Activity Logged!');
@@ -180,6 +177,7 @@ export const LogActivityModal = ({ isOpen, onClose, node, activityTypes, onSave 
         <Modal
             isOpen={isOpen}
             title="Activity Log"
+            size="large"
             onCancel={onClose}
             onConfirm={handleSubmit}
             confirmLabel={saving ? 'Saving...' : 'Add Entry'}
@@ -239,9 +237,13 @@ export const LogActivityModal = ({ isOpen, onClose, node, activityTypes, onSave 
                                         onChange={e => setAssessment(e.target.value)}
                                         style={{
                                             flex: 1,
-                                            accentColor: 'var(--accent)',
+                                            accentColor: 'var(--primary)',
                                             width: '100%',
-                                            cursor: 'pointer'
+                                            margin: 0,
+                                            padding: 0,
+                                            cursor: 'pointer',
+                                            height: 6,
+                                            appearance: 'auto' // ensure browser defaults don't conflict too much, but primarily rely on accentColor
                                         }}
                                     />
                                     <span style={{ fontWeight: 'bold' }}>{assessment}</span>

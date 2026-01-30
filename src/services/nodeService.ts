@@ -259,19 +259,19 @@ export const nodeService = {
             const typesExpanded = await pb.collection('activity_types').getFullList({
                 filter: `user_id = "${userId}"`,
                 sort: 'name',
-                expand: 'activity_attributes(type_id)'
+                expand: 'activity_attributes_via_type_id'
             });
 
             // Map to interface, handling DB snake_case -> App camelCase
             return typesExpanded.map((record: any) => {
-                const attrs = record.expand?.['activity_attributes(type_id)'] || [];
+                const attrs = record.expand?.['activity_attributes_via_type_id'] || [];
                 return {
                     id: record.id,
                     userId: record.user_id,
                     name: record.name,
                     attributes: attrs.map((a: any) => ({
                         id: a.id,
-                        typeId: a.type_id,
+                        typeId: record.id, // Use parent ID since we are expanding from parent
                         name: a.name,
                         dataType: a.data_type,     // CRITICAL: DB is data_type
                         isNullable: a.is_nullable, // CRITICAL: DB is is_nullable
