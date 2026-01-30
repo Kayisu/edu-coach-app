@@ -1,5 +1,5 @@
 import { pb } from '../api/pocketbase';
-import { AppNode, NodeCreateInput, Activity } from '../types/node';
+import { AppNode, NodeCreateInput, Activity, ActivityType, ActivityAttribute } from '../types/node';
 
 const isNonEmptyString = (value: any): value is string => typeof value === 'string' && value.trim().length > 0;
 const assert = (condition: boolean, message: string) => {
@@ -101,9 +101,7 @@ export const nodeService = {
                 metadata: {},
             };
 
-            console.log("PocketBase record:", record); // DEBUG
             const result = await pb.collection('nodes').create<AppNode>(record);
-            console.log("Create success:", result); // DEBUG
             return result;
         } catch (err: any) {
             console.error("[nodeService] Error: Create failed", err.data || err);
@@ -249,6 +247,137 @@ export const nodeService = {
     },
 
     /**
+     * Fetches all activity types with their attributes.
+     */
+    async fetchActivityTypes(): Promise<ActivityType[]> {
+        try {
+            if (!pb.authStore.isValid) return [];
+            const userId = pb.authStore.model?.id;
+            if (!userId) return [];
+
+            // Fetch types with their attributes expanded
+            const typesExpanded = await pb.collection('activity_types').getFullList({
+                filter: `user_id = "${userId}"`,
+                sort: 'name',
+                expand: 'activity_attributes(type_id)'
+            });
+
+            // Map to interface, handling DB snake_case -> App camelCase
+            return typesExpanded.map((record: any) => {
+                const attrs = record.expand?.['activity_attributes(type_id)'] || [];
+                return {
+                    id: record.id,
+                    userId: record.user_id,
+                    name: record.name,
+                    attributes: attrs.map((a: any) => ({
+                        id: a.id,
+                        typeId: a.type_id,
+                        name: a.name,
+                        dataType: a.data_type,     // CRITICAL: DB is data_type
+                        isNullable: a.is_nullable, // CRITICAL: DB is is_nullable
+                        isInverse: a.is_inverse    // CRITICAL: DB is is_inverse
+                    })).sort((a: any, b: any) => a.name.localeCompare(b.name)) // Keep consistent order
+                };
+            });
+        } catch (error) {
+            console.error('[nodeService] Error: fetchActivityTypes failed', error);
+            return [];
+        }
+    },
+
+    /**
+     * Saves an activity type and syncs its attributes.
+     */
+    async saveActivityType(type: Partial<ActivityType>, attributes: ActivityAttribute[]): Promise<ActivityType> {
+        try {
+            if (!pb.authStore.isValid) throw new Error('Not authenticated');
+            const userId = pb.authStore.model?.id;
+            assert(isNonEmptyString(userId), 'Missing user context');
+            assert(isNonEmptyString(type.name), 'Type Name is required');
+
+            // 1. Save/Update Type
+            let typeRecord;
+            const typePayload = {
+                name: sanitizeName(type.name!),
+                user_id: userId
+            };
+
+            if (type.id) {
+                typeRecord = await pb.collection('activity_types').update(type.id, typePayload);
+            } else {
+                typeRecord = await pb.collection('activity_types').create(typePayload);
+            }
+
+            // 2. Sync Attributes
+            const existingAttrs = await pb.collection('activity_attributes').getFullList({
+                filter: `type_id = "${typeRecord.id}"`
+            });
+
+            const inputIds = new Set(attributes.filter(a => !!a.id).map(a => a.id));
+            const toDelete = existingAttrs.filter(a => !inputIds.has(a.id));
+            await Promise.all(toDelete.map(a => pb.collection('activity_attributes').delete(a.id)));
+
+            const savedAttributes = await Promise.all(attributes.map(async attr => {
+                const payload = {
+                    type_id: typeRecord.id, // Foreign Key
+                    user_id: userId,
+                    name: sanitizeName(attr.name),
+                    data_type: attr.dataType,     // Map to DB snake_case
+                    is_nullable: attr.isNullable, // Map to DB snake_case
+                    is_inverse: attr.isInverse    // Map to DB snake_case
+                };
+
+                if (attr.id) {
+                    return await pb.collection('activity_attributes').update(attr.id, payload);
+                } else {
+                    return await pb.collection('activity_attributes').create(payload);
+                }
+            }));
+
+            return {
+                id: typeRecord.id,
+                userId: typeRecord.user_id,
+                name: typeRecord.name,
+                attributes: savedAttributes.map((a: any) => ({
+                    id: a.id,
+                    typeId: a.type_id,
+                    name: a.name,
+                    dataType: a.data_type,
+                    isNullable: a.is_nullable,
+                    isInverse: a.is_inverse
+                }))
+            };
+        } catch (error) {
+            console.error('[nodeService] Error: saveActivityType failed', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Deletes an activity type. Prevents deletion if activities exist.
+     */
+    async deleteActivityType(typeId: string): Promise<void> {
+        try {
+            if (!pb.authStore.isValid) throw new Error('Not authenticated');
+
+            // Check usage
+            const usage = await pb.collection('activities').getList(1, 1, {
+                filter: `type_id = "${typeId}"`
+            });
+
+            if (usage.totalItems > 0) {
+                throw new Error('Cannot delete this Activity Type because actual activities are logged against it. Delete the activities first.');
+            }
+
+            // Delete type (PB should cascade attributes if setup, but safe to delete)
+            await pb.collection('activity_types').delete(typeId);
+        } catch (error) {
+            console.error('[nodeService] Error: deleteActivityType failed', error);
+            throw error;
+        }
+    },
+
+    /**
      * Fetches activities for a given node, scoped to current user.
      */
     async fetchActivitiesByNode(nodeId: string, limit = 50): Promise<Activity[]> {
@@ -259,12 +388,21 @@ export const nodeService = {
             if (!userId) throw new Error('Missing user context');
             assert(isNonEmptyString(nodeId), 'nodeId is required');
 
-            return pb.collection('activities').getFullList<Activity>({
+            const records = await pb.collection('activities').getFullList({
                 filter: `user_id = "${userId}" && node_id = "${nodeId}"`,
                 sort: '-date',
-                requestKey: null, // manual disable auto-cancel if needed, but we did globally
-                batch: limit,
+                batch: limit || 50
             });
+
+            // Map keys
+            return records.map((r: any) => ({
+                id: r.id,
+                nodeId: r.node_id,
+                typeId: r.type_id,
+                date: r.date,
+                selfAssessment: r.self_assessment,
+                values: r.values || {}
+            }));
         } catch (error) {
             console.error('[nodeService] Error: fetchActivitiesByNode failed', error);
             return [];
@@ -274,7 +412,7 @@ export const nodeService = {
     /**
      * Saves a study activity for a LEAF node.
      */
-    async saveActivity(payload: Partial<Activity> & { nodeId?: string; hoursSpent?: number; selfAssessment?: number }): Promise<Activity> {
+    async saveActivity(payload: Partial<Activity>): Promise<Activity> {
         try {
             if (!pb.authStore.isValid) throw new Error('Not authenticated');
 
@@ -283,33 +421,24 @@ export const nodeService = {
 
             const {
                 nodeId,
+                typeId,
                 date,
-                hoursSpent,
                 selfAssessment,
-                // Allow passthrough keys if caller already uses snake_case
-                node_id,
-                hours_spent,
-                self_assessment,
-                ...rest
-            } = payload ?? {};
+                values
+            } = payload;
 
-            const record = {
-                node_id: node_id ?? nodeId,
+            assert(isNonEmptyString(nodeId), 'nodeId is required');
+            assert(isNonEmptyString(typeId), 'Type is required');
+            assert(isNonEmptyString(date), 'Date is required');
+
+            const record: any = {
+                node_id: nodeId,
                 user_id: userId,
+                type_id: typeId,
                 date,
-                hours_spent: hours_spent ?? hoursSpent,
-                self_assessment: self_assessment ?? selfAssessment,
-                ...rest,
+                self_assessment: selfAssessment, // 1-5
+                values: values || {}
             };
-
-            assert(isNonEmptyString(record.node_id), 'node_id is required');
-            assert(isNonEmptyString(record.date), 'date is required');
-
-            if (record.hours_spent !== undefined && record.hours_spent !== null) {
-                const parsedHours = Number(record.hours_spent);
-                assert(Number.isFinite(parsedHours) && parsedHours >= 0, 'hours_spent must be a non-negative number');
-                record.hours_spent = parsedHours;
-            }
 
             if (record.self_assessment !== undefined && record.self_assessment !== null) {
                 const parsedSelf = Number(record.self_assessment);
@@ -317,7 +446,27 @@ export const nodeService = {
                 record.self_assessment = parsedSelf;
             }
 
-            return pb.collection('activities').create<Activity>(record);
+            if (payload.id) {
+                const res = await pb.collection('activities').update(payload.id, record);
+                return {
+                    id: res.id,
+                    nodeId: res.node_id,
+                    typeId: res.type_id,
+                    date: res.date,
+                    selfAssessment: res.self_assessment,
+                    values: res.values
+                };
+            } else {
+                const res = await pb.collection('activities').create(record);
+                return {
+                    id: res.id,
+                    nodeId: res.node_id,
+                    typeId: res.type_id,
+                    date: res.date,
+                    selfAssessment: res.self_assessment,
+                    values: res.values
+                };
+            }
         } catch (error) {
             console.error('[nodeService] Error: saveActivity failed', error);
             throw error;

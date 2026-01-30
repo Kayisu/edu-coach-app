@@ -1,3 +1,5 @@
+import { ActivityTypeManager } from './ActivityTypeManager';
+
 export const Settings = ({ theme, onThemeToggle }) => {
   return (
     <div className="settings">
@@ -13,6 +15,7 @@ export const Settings = ({ theme, onThemeToggle }) => {
           </button>
         </div>
       </div>
+      <ActivityTypeManager />
     </div>
   );
 };

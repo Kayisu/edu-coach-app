@@ -211,6 +211,7 @@ function App() {
               onForward={handleForward}
               canBack={backStack.length > 0}
               canForward={forwardStack.length > 0}
+              onOpenSettings={handleOpenSettings}
             />
           )}
         </main>

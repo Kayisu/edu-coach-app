@@ -1,4 +1,22 @@
 export type NodeType = 'FOLDER' | 'LEAF';
+export type AttributeDataType = 'text' | 'number' | 'duration';
+
+
+export interface ActivityAttribute {
+    id: string;
+    typeId: string;
+    name: string;
+    dataType: AttributeDataType;
+    isNullable: boolean;
+    isInverse: boolean;
+}
+
+export interface ActivityType {
+    id: string;
+    userId: string;
+    name: string;
+    attributes: ActivityAttribute[];
+}
 
 export interface User {
     id: string;
@@ -30,10 +48,9 @@ export interface NodeCreateInput {
 
 export interface Activity {
     id: string;
-    node_id: string;
-    user_id: string;
+    nodeId: string;
+    typeId: string;
     date: string;
-    hours_spent: number;
-    self_assessment: number;
-    [key: string]: any;
+    selfAssessment: number;
+    values: Record<string, string | number>;
 }
