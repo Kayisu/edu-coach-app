@@ -38,22 +38,29 @@ export const FolderView = ({ node }) => {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(20, 1fr)',
                 gap: 4,
-                marginTop: 12
+                marginTop: 16
             }}>
                 {days.map(d => {
-                    const intensity = Math.min(d.count, 4); // 0-4 scale
+                    // 0-4 scale: 0=Empty, 1-4=Intensity
+                    const intensity = Math.min(d.count, 4);
+                    let bg = 'var(--surface)'; // Default empty (Slate-900/White)
+
+                    if (intensity === 0) bg = 'var(--bg)'; // Slightly distinct from card bg
+                    if (intensity === 1) bg = 'var(--muted)'; // Low activity
+                    if (intensity === 2) bg = 'var(--accent)'; // Medium
+                    if (intensity === 3) bg = 'var(--accent-strong)'; // High
+                    if (intensity >= 4) bg = 'var(--text)'; // Peak (White/Slate-900)
+
                     return (
                         <div
                             key={d.date}
                             title={`${d.date}: ${d.count} activities`}
                             style={{
                                 aspectRatio: '1',
-                                borderRadius: 2,
-                                background: intensity === 0 ? 'var(--bg-secondary)' :
-                                    intensity === 1 ? 'rgba(100, 108, 255, 0.3)' :
-                                        intensity === 2 ? 'rgba(100, 108, 255, 0.5)' :
-                                            intensity === 3 ? 'rgba(100, 108, 255, 0.7)' :
-                                                'rgba(100, 108, 255, 1)'
+                                borderRadius: 3,
+                                backgroundColor: bg,
+                                opacity: intensity === 0 ? 0.5 : 1,
+                                transition: 'opacity 0.2s'
                             }}
                         />
                     );
@@ -86,31 +93,32 @@ export const FolderView = ({ node }) => {
 
                 <div className="stack" style={{ flex: 1 }}>
                     <div className="card">
-                        <div className="card__title">Overview</div>
-                        <div style={{ display: 'flex', gap: 20 }}>
+                        <div className="card__title text-xs uppercase tracking-wide text-muted mb-2">Overview</div>
+                        <div style={{ display: 'flex', gap: 24 }}>
                             <div>
-                                <div className="hint">Total Activities</div>
-                                <div style={{ fontSize: 20, fontWeight: 600 }}>{stats?.totalActivities || 0}</div>
+                                <div className="text-sm text-muted">Total Activities</div>
+                                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>{stats?.totalActivities || 0}</div>
                             </div>
                             <div>
-                                <div className="hint">Avg Focus</div>
-                                <div style={{ fontSize: 20, fontWeight: 600 }}>{stats?.averageFocus || 0}/5</div>
+                                <div className="text-sm text-muted">Avg Focus</div>
+                                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>{stats?.averageFocus || 0}<span className="text-muted text-sm" style={{ fontWeight: 400 }}>/5</span></div>
                             </div>
                         </div>
                     </div>
 
                     {stats?.weakestLink && (
-                        <div className="card" style={{ borderColor: 'var(--danger)', background: 'rgba(239, 68, 68, 0.05)' }}>
-                            <div className="card__title" style={{ color: 'var(--danger)' }}>⚠ Weakest Link</div>
-                            <div style={{ fontWeight: 600 }}>{stats.weakestLink.name}</div>
-                            <div className="hint">Average Focus: {stats.weakestLink.averageRating}/5</div>
+                        <div className="card">
+                            <div className="card__title text-xs uppercase tracking-wide text-muted mb-2">Attention Needed</div>
+                            <div style={{ fontWeight: 600, color: 'var(--text)' }}>{stats.weakestLink.name}</div>
+                            <div className="text-sm text-muted" style={{ marginTop: 4 }}>Average Focus: {stats.weakestLink.averageRating}/5</div>
                         </div>
                     )}
 
                     {!stats?.weakestLink && stats?.totalActivities > 0 && (
-                        <div className="card" style={{ borderColor: 'var(--success)', background: 'rgba(34, 197, 94, 0.05)' }}>
-                            <div className="card__title" style={{ color: 'var(--success)' }}>✓ All Good</div>
-                            <div className="hint">Consistent performance across all topics.</div>
+                        <div className="card">
+                            <div className="card__title text-xs uppercase tracking-wide text-muted mb-2">Status</div>
+                            <div style={{ color: 'var(--success)' }}>On Track</div>
+                            <div className="text-sm text-muted" style={{ marginTop: 4 }}>Consistent performance across all topics.</div>
                         </div>
                     )}
                 </div>

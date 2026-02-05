@@ -37,25 +37,118 @@
   display: flex;
   min-height: 0;
   flex: 1;
-  gap: 12px;
+  gap: 0;
+}
+
+/* Triple-Column Layout */
+.layout--triple {
+  display: grid;
+  grid-template-columns: 64px auto 6px 1fr;
+  gap: 0;
+}
+
+.layout--triple.sidebar-hidden {
+  grid-template-columns: 64px 1fr;
+}
+
+/* Activity Bar */
+.activity-bar {
+  width: 64px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0;
+  gap: 4px;
+}
+
+.activity-bar__btn {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.activity-bar__btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.activity-bar__btn--active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+.activity-bar__btn--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  background: var(--text);
+  border-radius: 0 2px 2px 0;
+}
+
+[data-theme="light"] .activity-bar__btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .activity-bar__btn--active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .activity-bar__btn--active::before {
+  background: var(--text);
 }
 
 .resizer {
   width: 6px;
   cursor: col-resize;
-  background: linear-gradient(180deg, rgba(79, 70, 229, 0.18), transparent);
-  border-radius: 8px;
+  background: transparent;
+  border-radius: 0;
   transition: background 120ms ease;
 }
 
 .resizer:hover,
 .resizer--active {
-  background: rgba(79, 70, 229, 0.32);
+  background: var(--accent);
 }
 
 @media (max-width: 960px) {
-  .layout {
+  .layout,
+  .layout--triple {
+    display: flex;
     flex-direction: column;
+  }
+
+  .activity-bar {
+    width: 100%;
+    flex-direction: row;
+    justify-content: center;
+    padding: 8px 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .activity-bar__btn--active::before {
+    left: 50%;
+    top: auto;
+    bottom: 0;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 3px;
+    border-radius: 2px 2px 0 0;
   }
 
   .resizer {

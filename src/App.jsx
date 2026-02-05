@@ -8,10 +8,13 @@ import { nodeService } from './services/nodeService';
 import { authService } from './services/authService';
 import { pb } from './api/pocketbase';
 import { AppHeader } from './components/AppHeader';
+import { ActivityBar } from './components/ActivityBar';
 import { Explorer } from './components/Explorer/Explorer';
 import { Workspace } from './components/Workspace';
 import { LoginPanel } from './components/LoginPanel';
 import { Settings } from './components/Settings';
+import { Home } from './components/Home';
+import { Calendar } from './components/Calendar';
 
 function App() {
   const [tree, setTree] = useState([]);
@@ -25,9 +28,23 @@ function App() {
   const layoutRef = useRef(null);
   const [view, setView] = useState('workspace');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+
   /* Tabbed Navigation State */
   const [tabs, setTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
+
+  /* Module Navigation State */
+  const [activeModule, setActiveModule] = useState('explorer');
+  const [sideBarVisible, setSideBarVisible] = useState(true);
+
+  // Auto-collapse sidebar when switching to Home/Calendar
+  useEffect(() => {
+    if (activeModule === 'home' || activeModule === 'calendar') {
+      setSideBarVisible(false);
+    } else if (activeModule === 'explorer') {
+      setSideBarVisible(true);
+    }
+  }, [activeModule]);
 
   const findById = useMemo(
     () => (list, id) => {
@@ -54,9 +71,28 @@ function App() {
       }
       const data = await nodeService.fetchNodeTree();
       setTree(data);
-      // If we have an active tab, refresh its node data if possible?
-      // Actually, tabs store nodes. We might need to refresh the node in the tab if it changed.
-      // For now, let's just refresh the tree.
+
+      // Clean up tabs for deleted nodes
+      const allNodeIds = new Set();
+      const collectIds = (nodes) => {
+        for (const n of nodes) {
+          allNodeIds.add(n.id);
+          if (n.children?.length) collectIds(n.children);
+        }
+      };
+      collectIds(data);
+
+      setTabs(prev => {
+        const validTabs = prev.filter(t => allNodeIds.has(t.id));
+        // If active tab was removed, switch to another or clear
+        if (validTabs.length < prev.length) {
+          const newActiveExists = validTabs.some(t => t.id === activeTabId);
+          if (!newActiveExists) {
+            setActiveTabId(validTabs.length > 0 ? validTabs[0].id : null);
+          }
+        }
+        return validTabs;
+      });
     } catch (err) {
       setError(err?.message || 'Failed to load tree');
     } finally {
@@ -86,13 +122,14 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Sidebar Resizing Logic
+  // Sidebar Resizing Logic - adjusted for triple-column layout
   useEffect(() => {
     if (!isResizing) return;
     const handleMove = (e) => {
       if (!layoutRef.current) return;
       const rect = layoutRef.current.getBoundingClientRect();
-      const next = e.clientX - rect.left;
+      // Offset by activity bar width (64px)
+      const next = e.clientX - rect.left - 64;
       const clamped = Math.min(450, Math.max(200, next));
       setSidebarWidth(clamped);
       localStorage.setItem('sidebarWidth', String(clamped));
@@ -118,11 +155,12 @@ function App() {
     });
   };
 
-  /**
-   * Opens a node in a new tab or focuses existing.
-   */
   const handleOpenTab = (node) => {
+    // Guard: if node is null (e.g., after deletion), don't try to open a tab
+    if (!node) return;
+
     setView('workspace');
+    setActiveModule('explorer');
     setTabs(prev => {
       const exists = prev.find(t => t.id === node.id);
       if (exists) return prev;
@@ -138,11 +176,8 @@ function App() {
 
       const newTabs = prev.filter(t => t.id !== tabId);
 
-      // If closing active tab, switch to neighbor
       if (tabId === activeTabId) {
         if (newTabs.length > 0) {
-          // Try to go to right, else left
-          // If we closed the last one (index was length-1), go to new length-1
           const nextIdx = Math.min(idx, newTabs.length - 1);
           setActiveTabId(newTabs[nextIdx].id);
         } else {
@@ -160,6 +195,7 @@ function App() {
 
   const handleOpenSettings = () => {
     setView('settings');
+    setActiveModule('explorer');
   };
 
   const collapseAll = () => {
@@ -175,11 +211,17 @@ function App() {
     setCollapsedIds(new Set(ids));
   };
 
+  const handleToggleSideBar = () => {
+    setSideBarVisible(v => !v);
+  };
+
   const displayName = (() => {
     const email = user?.email;
     if (email) return email.split('@')[0];
     return user?.username || 'User';
   })();
+
+  const layoutClass = `layout layout--triple ${!sideBarVisible ? 'sidebar-hidden' : ''}`;
 
   return (
     <div className="app-shell">
@@ -191,45 +233,66 @@ function App() {
         onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
         onOpenSettings={handleOpenSettings}
       />
-      <div className="layout" ref={layoutRef}>
-        <Explorer
-          tree={tree}
-          selected={activeNode}
-          onSelect={handleOpenTab}
-          collapsedIds={collapsedIds}
-          toggleCollapse={toggleCollapse}
-          loading={loading}
-          error={error}
-          onCreated={refresh}
-          onOpenSettings={handleOpenSettings}
-          width={sidebarWidth}
-          onRefresh={refresh}
-          onCollapseAll={collapseAll}
-          onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+      <div className={layoutClass} ref={layoutRef}>
+        <ActivityBar
+          activeModule={activeModule}
+          onModuleChange={setActiveModule}
+          onToggleSideBar={handleToggleSideBar}
         />
-        <div
-          className={`resizer ${isResizing ? 'resizer--active' : ''}`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            setIsResizing(true);
-          }}
-        />
-        <main className="workspace">
-          {view === 'settings' ? (
-            <Settings
-              theme={theme}
+
+        {sideBarVisible && (
+          <>
+            <Explorer
+              tree={tree}
+              selected={activeNode}
+              onSelect={handleOpenTab}
+              collapsedIds={collapsedIds}
+              toggleCollapse={toggleCollapse}
+              loading={loading}
+              error={error}
+              onCreated={refresh}
+              onOpenSettings={handleOpenSettings}
+              width={sidebarWidth}
+              onRefresh={refresh}
+              onCollapseAll={collapseAll}
               onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
             />
-          ) : (
-            <Workspace
-              node={activeNode}
-              tabs={tabs}
-              activeTabId={activeTabId}
-              onTabClick={(node) => setActiveTabId(node.id)}
-              onTabClose={handleCloseTab}
-              onRefresh={refresh}
-              onOpenSettings={handleOpenSettings}
+            <div
+              className={`resizer ${isResizing ? 'resizer--active' : ''}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setIsResizing(true);
+              }}
             />
+          </>
+        )}
+
+        <main className="workspace">
+          {activeModule === 'home' && (
+            <Home tree={tree} onOpenTab={handleOpenTab} />
+          )}
+
+          {activeModule === 'calendar' && (
+            <Calendar tree={tree} onRefresh={refresh} />
+          )}
+
+          {activeModule === 'explorer' && (
+            view === 'settings' ? (
+              <Settings
+                theme={theme}
+                onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              />
+            ) : (
+              <Workspace
+                node={activeNode}
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onTabClick={(node) => setActiveTabId(node.id)}
+                onTabClose={handleCloseTab}
+                onRefresh={refresh}
+                onOpenSettings={handleOpenSettings}
+              />
+            )
           )}
         </main>
       </div>

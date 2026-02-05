@@ -13,7 +13,8 @@
 
 .btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.28);
+  /* Removed colored shadow */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .btn:disabled {
@@ -30,13 +31,14 @@
 }
 
 .btn--danger {
-  background: linear-gradient(90deg, #ef4444, #dc2626);
-  box-shadow: 0 10px 24px rgba(220, 38, 38, 0.35);
+  background: #ef4444; /* Solid red */
+  /* Removed gradients and glow */
 }
 
 .btn--danger:hover {
+  background: #dc2626;
   transform: translateY(-1px);
-  box-shadow: 0 12px 28px rgba(220, 38, 38, 0.45);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .icon-btn {
@@ -44,19 +46,20 @@
   height: 32px;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent;
   color: var(--text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+  transition: all 0.2s ease;
 }
 
 .icon-btn:hover {
-  border-color: rgba(79, 70, 229, 0.6);
-  background: rgba(79, 70, 229, 0.08);
-  box-shadow: 0 6px 14px rgba(79, 70, 229, 0.22);
+  border-color: var(--border);
+  background: var(--bg);
+  color: var(--text);
+  /* Removed colored glow */
 }
 
 .form {
@@ -135,17 +138,17 @@
 .dialog__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(2px);
+  background: rgba(2, 6, 23, 0.7); /* Thicker dark overlay */
+  backdrop-filter: blur(4px); /* Stronger blur */
 }
 
 .dialog__panel {
   position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 18px 20px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  border-radius: 16px; /* More rounded */
+  padding: 24px; /* More breathing room */
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); /* Deep shadow */
   min-width: 320px; /* Biraz genişlettik */
   max-width: 850px;
   width: 90%;
@@ -165,9 +168,31 @@
   line-height: 1.4;
 }
 
+/* Custom Scrollbar */
+.dialog__body::-webkit-scrollbar,
+.activity::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dialog__body::-webkit-scrollbar-track,
+.activity::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dialog__body::-webkit-scrollbar-thumb,
+.activity::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.dialog__body::-webkit-scrollbar-thumb:hover,
+.activity::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
 .dialog__panel--elevated {
-  border-color: rgba(79, 70, 229, 0.35);
-  box-shadow: 0 26px 72px rgba(15, 23, 42, 0.55), 0 0 0 1px rgba(79, 70, 229, 0.24);
+  border-color: var(--border);
+  box-shadow: 0 26px 72px rgba(0, 0, 0, 0.4);
 }
 
 .dialog__header {
@@ -370,26 +395,39 @@
   color: var(--muted);
 }
 
+/* Modern Slider */
 input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
   width: 100%;
-  margin: 0;
+  background: transparent;
   cursor: pointer;
+  margin: 0;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
   width: 100%;
-  height: 6px;
+  height: 4px; /* Thinner track */
   background: var(--border);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 
 input[type="range"]::-webkit-slider-thumb {
   appearance: none;
-  height: 18px;
-  width: 18px;
+  -webkit-appearance: none;
+  height: 16px;
+  width: 16px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-  margin-top: -6px; /* Track üzerinde ortalar */
-  cursor: pointer;
+  background: var(--accent);
+  margin-top: -6px; /* Center on track */
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.1s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }

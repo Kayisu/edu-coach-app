@@ -18,11 +18,6 @@ export const AppHeader = ({ title, user, onLogout = authService.logout, onThemeT
               {onOpenSettings && (
                 <button className="user-menu__item" onClick={() => { setOpen(false); onOpenSettings(); }}>Settings</button>
               )}
-              {onThemeToggle && (
-                <button className="user-menu__item" onClick={() => { setOpen(false); onThemeToggle(); }}>
-                  Toggle Theme
-                </button>
-              )}
               <button className="user-menu__item" onClick={onLogout}>Sign Out</button>
             </div>
           )}

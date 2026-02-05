@@ -352,9 +352,8 @@ export const Explorer = ({
         className={`sidebar`}
         style={{ width: `${width}px` }}
         onClick={(e) => {
-          if (!e.target.closest('.tree__node') && !e.target.closest('button') && !e.target.closest('.search-input-wrapper')) {
-            onSelect(null);
-          }
+          // Fix: Do not deselect when clicking empty sidebar space
+          // onSelect(null);
         }}
         onContextMenu={handleContextMenuRoot}
       >
@@ -389,34 +388,13 @@ export const Explorer = ({
           className={`sidebar__root-area ${isOverRoot ? 'sidebar__root-area--active' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
-            onSelect(null);
+            // Fix: Do not deselect
+            // onSelect(null);
           }}
         >
           {/* Fill empty space */}
         </div>
-
-        <div className="sidebar__footer">
-          <button
-            className="chip chip--tiny"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenSettings?.();
-            }}
-          >
-            ⚙ Settings
-          </button>
-          {onThemeToggle && (
-            <button
-              className="chip chip--tiny"
-              onClick={(e) => {
-                e.stopPropagation();
-                onThemeToggle();
-              }}
-            >
-              Theme
-            </button>
-          )}
-        </div>
+        {/* Footer buttons removed - settings accessible from header */}
         {contextMenu ? (
           <ContextMenu
             x={contextMenu.x}
