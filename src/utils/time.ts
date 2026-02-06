@@ -52,3 +52,20 @@ export const formatDate = (dateStr: any): string => {
         return s;
     }
 };
+
+/**
+ * Normalizes any date to the Monday of that week.
+ * @param date - Date object or ISO string
+ * @returns Date string "YYYY-MM-DD" representing the Monday
+ */
+export const normalizeToMonday = (date: string | Date): string => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // Adjust so 0 (Sunday) becomes -6
+    d.setDate(d.getDate() + diff);
+    // Return YYYY-MM-DD
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+};

@@ -42,31 +42,41 @@ export const statsService = {
 
         // 3. Process Activity Heatmap (Count by Date)
         const heatmap: Record<string, number> = {};
-        let totalFocus = 0;
-        let count = 0;
 
         activities.forEach((act: any) => {
             heatmap[act.date] = (heatmap[act.date] || 0) + 1;
-            if (act.self_assessment) {
-                totalFocus += act.self_assessment;
-                count++;
+        });
+
+        // 4. Fetch Weekly Reviews for Average Focus / Weakest Link
+        // We need week starts for recent history. 
+        // For simplicity, let's fetch ALL weekly reviews for these leaves for the last 30 days or so?
+        // Or just fetch all reviews for these nodes.
+        // Optimization: Single query for all reviews on these nodes.
+        const leafFilter = leafIds.map((id: string) => `node_id="${id}"`).join(' || ');
+        const reviews = await pb.collection('weekly_reviews').getFullList({
+            filter: leafFilter,
+            sort: '-week_start',
+        }); // Returns items with rating
+
+        let totalRating = 0;
+        let ratingCount = 0;
+        const nodeRatings: Record<string, { sum: number; count: number }> = {};
+
+        reviews.forEach((r: any) => {
+            if (r.rating) {
+                totalRating += r.rating;
+                ratingCount++;
+                if (!nodeRatings[r.node_id]) nodeRatings[r.node_id] = { sum: 0, count: 0 };
+                nodeRatings[r.node_id].sum += r.rating;
+                nodeRatings[r.node_id].count++;
             }
         });
 
-        // 4. Determine Weakest Link (Leaf with lowest average self-assessment)
-        // Group by node
-        const nodeStats: Record<string, { sum: number; count: number }> = {};
-        activities.forEach((act: any) => {
-            if (!nodeStats[act.node_id]) nodeStats[act.node_id] = { sum: 0, count: 0 };
-            nodeStats[act.node_id].sum += (act.self_assessment || 0);
-            nodeStats[act.node_id].count++;
-        });
-
         let weakestLink = null;
-        let minAvg = 6; // max is 5
+        let minAvg = 6;
 
         leaves.forEach((leaf: AppNode) => {
-            const stats = nodeStats[leaf.id];
+            const stats = nodeRatings[leaf.id];
             if (stats && stats.count > 0) {
                 const avg = stats.sum / stats.count;
                 if (avg < minAvg) {
@@ -83,7 +93,7 @@ export const statsService = {
             heatmap, // { "YYYY-MM-DD": count }
             weakestLink, // { name, id, averageRating }
             totalActivities: activities.length,
-            averageFocus: count > 0 ? (totalFocus / count).toFixed(1) : 0
+            averageFocus: ratingCount > 0 ? (totalRating / ratingCount).toFixed(1) : 0
         };
     },
 
@@ -94,13 +104,22 @@ export const statsService = {
         // Fetch last 50 activities
         const activities = await nodeService.fetchActivitiesByNode(nodeId, 50);
 
-        // 1. Success Curve (Assessment over time)
-        // We want strict chronological order for the chart
-        const sortedActs = [...activities].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        const successCurve = sortedActs.map(a => ({
-            date: a.date,
-            value: a.selfAssessment
+        // 1. Success Curve (Weekly Ratings over time)
+        // Fetch reviews for this node
+        const reviews = await pb.collection('weekly_reviews').getFullList({
+            filter: `node_id="${nodeId}"`,
+            sort: 'week_start',
+        });
+
+
+
+        const successCurve = reviews.map((r: any) => ({
+            date: r.week_start, // Plot points by week start
+            value: r.rating
         }));
+
+        // We still need sorted acts for other stats
+        const sortedActs = [...activities].sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
         // 2. Efficiency Index (Total Output / Total Minutes)
         // "Total Output" -> Sum of attributes with 'number' type? 

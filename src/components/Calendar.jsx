@@ -2,13 +2,11 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { nodeService } from '../services/nodeService';
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, SaveIcon, DeleteIcon, RenameIcon as EditIcon } from '../assets/icons';
 import { Modal } from './Modal';
+import { useToast } from '../contexts/ToastContext';
 
 import { EditActivityModal } from './EditActivityModal';
+import { WeeklyReviewModal } from './WeeklyReviewModal';
 
-/**
- * Smart Activity Ledger
- * Week-based activity logging with cascading hierarchical node selection
- */
 export const Calendar = ({ tree, treeLoading, onRefresh }) => {
     const [activities, setActivities] = useState([]);
     const [newRows, setNewRows] = useState({}); // { [weekKey]: [...rows] }
@@ -19,9 +17,10 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
     const [addedWeeks, setAddedWeeks] = useState(new Set());
     const [showWeekPicker, setShowWeekPicker] = useState(false);
 
-    // Delete/Edit State
+    // Delete/Edit/Review State
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, activityId: null });
     const [editModal, setEditModal] = useState({ isOpen: false, activity: null, node: null });
+    const [reviewModal, setReviewModal] = useState({ isOpen: false, weekStart: null });
 
     // ========================================
     // WEEK UTILITIES
@@ -277,7 +276,7 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
                 leafId: '',
                 typeId: '',
                 values: {},
-                focus: 3
+                // focus removed
             }]
         }));
     };
@@ -297,6 +296,10 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
             [weekKey]: (prev[weekKey] || []).filter(row => row.tempId !== tempId)
         }));
     };
+
+    const { addToast } = useToast();
+
+    // ...
 
     const saveNewRow = async (weekKey, row) => {
         const errors = {};
@@ -331,17 +334,18 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
                 nodeId: row.leafId,
                 typeId: row.typeId,
                 date: middleDate,
-                selfAssessment: row.focus === 'null' ? null : (row.focus || 3),
+                // selfAssessment removed
                 values: row.values
             });
 
             removeNewRow(weekKey, row.tempId);
             const acts = await fetchAllActivities();
             setActivities(acts);
+            addToast('Activity logged successfully', 'success');
             onRefresh?.();
         } catch (err) {
             console.error(err);
-            // Optional: show toast
+            addToast('Failed to log activity', 'error');
         } finally {
             setSaving(prev => ({ ...prev, [row.tempId]: false }));
         }
@@ -364,8 +368,10 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
             await nodeService.deleteActivity(deleteModal.activityId);
             setActivities(prev => prev.filter(a => a.id !== deleteModal.activityId));
             setDeleteModal({ isOpen: false, activityId: null });
+            addToast('Activity deleted', 'success');
         } catch (err) {
-            alert('Failed to delete activity: ' + err.message);
+            console.error(err);
+            addToast('Failed to delete activity', 'error');
         }
     };
 
@@ -515,15 +521,26 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
                                 <span className="ledger__week-label">{week.label}</span>
                                 <span className="ledger__week-badge">Week {week.weekNumber}</span>
                                 <span className="ledger__week-count">{totalCount} entries</span>
-                                <button
-                                    className="ledger__add-btn"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        addNewRow(week.key);
-                                    }}
-                                >
-                                    <PlusIcon size={12} /> Add
-                                </button>
+                                <div className="ledger__week-actions">
+                                    <button
+                                        className="ledger__review-btn"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setReviewModal({ isOpen: true, weekStart: week.key });
+                                        }}
+                                    >
+                                        ★ Make a self assessment
+                                    </button>
+                                    <button
+                                        className="ledger__add-btn"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            addNewRow(week.key);
+                                        }}
+                                    >
+                                        <PlusIcon size={12} /> Add Activity
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Week Body */}
@@ -555,11 +572,7 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
                                                         );
                                                     })}
                                                 </div>
-                                                <div className="ledger__cell ledger__cell--focus">
-                                                    <span className={`focus-badge focus-badge--${act.selfAssessment || 3}`}>
-                                                        {act.selfAssessment || 3}/5
-                                                    </span>
-                                                </div>
+
                                                 <div className="ledger__cell ledger__cell--actions">
                                                     <button
                                                         className="ledger__action-btn"
@@ -611,18 +624,6 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
                                                         })}
                                                     />
                                                 ))}
-                                            </div>
-                                            <div className="ledger__cell ledger__cell--focus">
-                                                <select
-                                                    className="ledger__select ledger__select--focus"
-                                                    value={row.focus}
-                                                    onChange={e => updateNewRow(week.key, row.tempId, { focus: parseInt(e.target.value) })}
-                                                >
-                                                    <option value="null">No Rating</option>
-                                                    {[1, 2, 3, 4, 5].map(n => (
-                                                        <option key={n} value={n}>{n}/5</option>
-                                                    ))}
-                                                </select>
                                             </div>
                                             <div className="ledger__cell ledger__cell--actions">
                                                 <button
@@ -716,6 +717,14 @@ export const Calendar = ({ tree, treeLoading, onRefresh }) => {
                     }}
                 />
             )}
+
+            {/* Weekly Review Modal */}
+            <WeeklyReviewModal
+                isOpen={reviewModal.isOpen}
+                onClose={() => setReviewModal({ isOpen: false, weekStart: null })}
+                weekStart={reviewModal.weekStart}
+                tree={tree} // Pass tree for dropdown
+            />
         </div>
     );
 };

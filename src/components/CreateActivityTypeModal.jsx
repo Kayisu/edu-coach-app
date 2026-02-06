@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { nodeService } from '../services/nodeService';
+import { useToast } from '../contexts/ToastContext';
 
 // Sub-component for attributes to prevent re-render focus loss (Shared logic)
 const AttributeRow = ({ attr, idx, updateAttr, removeAttr }) => {
@@ -84,6 +85,7 @@ const SimpleTypeEditor = ({ name, setName, attributes, updateAttr, removeAttr, a
 );
 
 export const CreateActivityTypeModal = ({ isOpen, onClose, onCreated }) => {
+    const { addToast } = useToast();
     const [name, setName] = useState('');
     const [attributes, setAttributes] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -107,15 +109,20 @@ export const CreateActivityTypeModal = ({ isOpen, onClose, onCreated }) => {
     };
 
     const handleSave = async () => {
-        if (!name.trim()) return alert('Name required');
+        if (!name.trim()) {
+            addToast('Type name is required', 'error');
+            return;
+        }
 
         try {
             setLoading(true);
             await nodeService.saveActivityType({ name }, attributes);
+            addToast('Activity type created successfully', 'success');
             onCreated();
             onClose();
         } catch (err) {
-            alert(err.message);
+            console.error(err);
+            addToast('Failed to create activity type', 'error');
         } finally {
             setLoading(false);
         }

@@ -1,5 +1,5 @@
 import { pb } from '../api/pocketbase';
-import { AppNode, NodeCreateInput, Activity, ActivityType, ActivityAttribute } from '../types/node';
+import { AppNode, NodeCreateInput, Activity, ActivityType, ActivityAttribute, WeeklyReview } from '../types/node';
 
 const isNonEmptyString = (value: any): value is string => typeof value === 'string' && value.trim().length > 0;
 const assert = (condition: boolean, message: string) => {
@@ -415,7 +415,7 @@ export const nodeService = {
                 nodeId: r.node_id,
                 typeId: r.type_id,
                 date: r.date,
-                selfAssessment: r.self_assessment,
+                // selfAssessment: r.self_assessment, // Removed
                 values: r.values || {}
             }));
         } catch (error) {
@@ -438,7 +438,6 @@ export const nodeService = {
                 nodeId,
                 typeId,
                 date,
-                selfAssessment,
                 values
             } = payload;
 
@@ -451,17 +450,8 @@ export const nodeService = {
                 user_id: userId,
                 type_id: typeId,
                 date,
-                self_assessment: selfAssessment, // 1-5
                 values: values || {}
             };
-
-            if (record.self_assessment !== undefined && record.self_assessment !== null && record.self_assessment !== '') {
-                const parsedSelf = Number(record.self_assessment);
-                assert(Number.isFinite(parsedSelf) && parsedSelf >= 1 && parsedSelf <= 5, 'self_assessment must be between 1 and 5');
-                record.self_assessment = parsedSelf;
-            } else {
-                record.self_assessment = null;
-            }
 
             if (payload.id) {
                 const res = await pb.collection('activities').update(payload.id, record);
@@ -470,7 +460,6 @@ export const nodeService = {
                     nodeId: res.node_id,
                     typeId: res.type_id,
                     date: res.date,
-                    selfAssessment: res.self_assessment,
                     values: res.values
                 };
             } else {
@@ -480,12 +469,93 @@ export const nodeService = {
                     nodeId: res.node_id,
                     typeId: res.type_id,
                     date: res.date,
-                    selfAssessment: res.self_assessment,
                     values: res.values
                 };
             }
         } catch (error) {
             console.error('[nodeService] Error: saveActivity failed', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Fetches a global weekly review for a specific week.
+     */
+    async fetchWeeklyReview(weekStart: string): Promise<WeeklyReview | null> {
+        try {
+            if (!pb.authStore.isValid) return null;
+            const userId = pb.authStore.model?.id;
+            if (!userId) return null;
+
+            // Check if exists (Global: only user + week)
+            const list = await pb.collection('weekly_reviews').getList(1, 1, {
+                filter: `user_id = "${userId}" && week_start = "${weekStart}"`
+            });
+
+            if (list.items.length === 0) return null;
+
+            const r = list.items[0];
+            return {
+                id: r.id,
+                userId: r.user_id,
+                nodeId: r.node_id,
+                weekStart: r.week_start,
+                rating: r.rating,
+                notes: r.notes
+            };
+        } catch (error) {
+            console.error('[nodeService] Error: fetchWeeklyReview failed', error);
+            return null;
+        }
+    },
+
+    /**
+     * Upserts a weekly review.
+     */
+    /**
+     * Upserts a global weekly review.
+     */
+    async saveWeeklyReview(review: Partial<WeeklyReview>): Promise<WeeklyReview> {
+        try {
+            if (!pb.authStore.isValid) throw new Error('Not authenticated');
+            const userId = pb.authStore.model?.id;
+            assert(isNonEmptyString(userId), 'Missing user context');
+
+            const { weekStart, rating, notes } = review;
+            assert(isNonEmptyString(weekStart), 'weekStart is required');
+
+            // Check rating
+            if (rating !== undefined) {
+                assert(Number.isFinite(rating) && rating >= 1 && rating <= 5, 'Rating must be 1-5');
+            }
+
+            // Check if exists logic
+            const existing = await nodeService.fetchWeeklyReview(weekStart!);
+
+            const payload = {
+                user_id: userId,
+                week_start: weekStart,
+                rating,
+                notes
+            };
+
+            let res;
+            if (existing) {
+                res = await pb.collection('weekly_reviews').update(existing.id, payload);
+            } else {
+                res = await pb.collection('weekly_reviews').create(payload);
+            }
+
+            return {
+                id: res.id,
+                userId: res.user_id,
+                nodeId: res.node_id,
+                weekStart: res.week_start,
+                rating: res.rating,
+                notes: res.notes
+            };
+        } catch (error) {
+            console.error('[nodeService] Error: saveWeeklyReview failed', error);
             throw error;
         }
     },

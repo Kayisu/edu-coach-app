@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { nodeService } from '../services/nodeService';
 import { minutesToTimeStr, timeStrToMinutes } from '../utils/time';
+import { useToast } from '../contexts/ToastContext';
 
 export const EditActivityModal = ({ isOpen, onClose, activity, activityTypes, onSave }) => {
+    const { addToast } = useToast();
     const [typeId, setTypeId] = useState('');
     const [date, setDate] = useState('');
-    const [assessment, setAssessment] = useState('');
     const [values, setValues] = useState({});
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
@@ -16,8 +17,6 @@ export const EditActivityModal = ({ isOpen, onClose, activity, activityTypes, on
             setTypeId(activity.typeId);
             const dateStr = activity.date.includes('T') ? activity.date.split('T')[0] : activity.date;
             setDate(dateStr);
-            // Handle null/0 as empty string for select
-            setAssessment(activity.selfAssessment ? String(activity.selfAssessment) : '');
             setValues(activity.values || {});
             setErrors({});
         }
@@ -77,15 +76,17 @@ export const EditActivityModal = ({ isOpen, onClose, activity, activityTypes, on
                 nodeId: activity.nodeId,
                 typeId,
                 date,
-                selfAssessment: assessment ? Number(assessment) : null,
+                // selfAssessment removed
                 values: processedValues
             });
 
+            addToast('Activity updated successfully', 'success');
             setSaving(false);
             onSave();
             onClose();
         } catch (err) {
-            alert(err.message); // Fallback for server errors
+            console.error(err);
+            addToast('Failed to update activity', 'error');
             setSaving(false);
         }
     };
@@ -165,21 +166,7 @@ export const EditActivityModal = ({ isOpen, onClose, activity, activityTypes, on
                         </select>
                     </div>
 
-                    <div className="row-spaced" style={{ display: 'flex', gap: 12 }}>
-                        <div className="form__field" style={{ flex: 1 }}>
-                            <span>Focus / Self Assessment</span>
-                            <select
-                                className="input"
-                                value={assessment}
-                                onChange={e => setAssessment(e.target.value)}
-                            >
-                                <option value="">No Rating</option>
-                                {[1, 2, 3, 4, 5].map(n => (
-                                    <option key={n} value={n}>{n}/5</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
+                    {/* Self Assessment Removed */}
 
                     {selectedType?.attributes.map(attr => (
                         <div key={attr.id} className="form__field">

@@ -316,10 +316,14 @@ function AppContent() {
   );
 }
 
+import { ToastProvider } from './contexts/ToastContext';
+
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </BrowserRouter>
   );
 }

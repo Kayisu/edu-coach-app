@@ -51,6 +51,15 @@ export interface Activity {
     nodeId: string;
     typeId: string;
     date: string;
-    selfAssessment: number;
+    // selfAssessment removed
     values: Record<string, string | number>;
+}
+
+export interface WeeklyReview {
+    id: string;
+    userId: string;
+    nodeId?: string; // Optional/Deprecated for Global Review
+    weekStart: string; // "YYYY-MM-DD" (Monday)
+    rating: number; // 1-5
+    notes?: string;
 }

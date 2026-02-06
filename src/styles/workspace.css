@@ -430,49 +430,60 @@
   gap: 12px;
 }
 
-/* Week Card */
+/* Week Card - Cleaner Look */
 .ledger__week {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  overflow: visible;
+  margin-bottom: 24px;
+}
+
+.ledger__week:last-child {
+  border-bottom: none;
 }
 
 .ledger__week-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  gap: 16px;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s ease;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
 }
 
 .ledger__week-header:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: transparent;
+  opacity: 1;
 }
 
 .ledger__week-chevron {
   color: var(--muted);
   display: flex;
   align-items: center;
+  transition: transform 0.2s;
 }
 
 .ledger__week-label {
-  font-weight: 600;
-  font-size: 15px;
+  font-family: 'Outfit', sans-serif; /* Example sleek font if available, else inherit */
+  font-weight: 500;
+  font-size: 18px;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .ledger__week-badge {
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent);
-  background: rgba(99, 102, 241, 0.12);
-  padding: 3px 10px;
-  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 12px;
 }
 
 .ledger__week-count {
@@ -481,45 +492,89 @@
   margin-left: auto;
 }
 
+.ledger__week-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 16px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.ledger__week-header:hover .ledger__week-actions {
+    opacity: 1;
+}
+
+.ledger__review-btn {
+    font-size: 12px;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ledger__review-btn:hover {
+    border-color: var(--accent);
+    background: var(--surface);
+}
+
 .ledger__add-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .ledger__add-btn:hover {
-  background: var(--accent-strong);
+  border-color: var(--accent);
 }
 
 .ledger__week-body {
-  padding: 12px;
+  padding: 16px 0 8px 28px; /* Indent content */
+  position: relative;
+}
+
+/* Vertical line for week timeline */
+.ledger__week-body::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border);
+    opacity: 0.5;
 }
 
 .ledger__empty {
   padding: 20px;
-  text-align: center;
+  text-align: left;
   color: var(--muted);
   font-size: 13px;
+  font-style: italic;
 }
 
-/* Activity Rows */
+/* Activity Rows - Minimalist */
 .ledger__row {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  margin-bottom: 8px;
+  align-items: center; /* Center vertically */
+  gap: 16px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 4px;
   transition: background 0.1s ease;
+  border: 1px solid transparent;
 }
 
 .ledger__row:last-child {
@@ -531,11 +586,13 @@
 }
 
 .ledger__row--saved:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--surface);
+  border-color: var(--border); /* Subtle reveal on hover */
 }
 
 .ledger__row--new {
-  background: rgba(99, 102, 241, 0.06);
+  background: rgba(var(--accent-rgb), 0.05); /* Assuming rgb var exists, else fallback style */
+  background: var(--surface);
   border: 1px dashed var(--border);
 }
 
@@ -546,22 +603,13 @@
   flex-shrink: 0;
 }
 
-.ledger__cell--path {
-  flex: 1;
-  min-width: 0;
-}
-
-.ledger__cell--path-select {
-  flex: 1;
-  min-width: 200px;
-}
-
 .ledger__path-text {
   font-size: 13px;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 500;
 }
 
 .ledger__cell--type {
@@ -572,7 +620,7 @@
   flex: 1;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 12px; /* More breathing room */
   min-width: 120px;
 }
 

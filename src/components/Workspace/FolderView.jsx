@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { statsService } from '../../services/statsService';
+import { NodeBreadcrumbs } from './NodeBreadcrumbs';
 
 export const FolderView = ({ node }) => {
     const [stats, setStats] = useState(null);
@@ -76,6 +77,7 @@ export const FolderView = ({ node }) => {
             <div className="card card--loose">
                 <div className="card__title">Strategic Dashboard</div>
                 <div style={{ fontSize: 24, fontWeight: 'bold' }}>{node.name}</div>
+                <NodeBreadcrumbs path={node.path} />
                 <div className="hint" style={{ marginTop: 4 }}>
                     Aggregated stats for {node.children?.length || 0} topics
                 </div>

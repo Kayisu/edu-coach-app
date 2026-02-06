@@ -137,7 +137,7 @@ const ContextCard = ({ context, onClick }) => {
                 </div>
                 <div className="context-card__stat">
                     <span className="context-card__stat-value">{stats.averageFocus || '—'}</span>
-                    <span className="context-card__stat-label">Avg Focus</span>
+                    <span className="context-card__stat-label">Wkly Avg</span>
                 </div>
                 <div className="context-card__stat">
                     <span className="context-card__stat-value">{context.children?.length || 0}</span>
@@ -164,7 +164,6 @@ const LedgerTable = ({ activities }) => {
                     <tr>
                         <th>Date</th>
                         <th>Topic</th>
-                        <th>Focus</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -173,11 +172,6 @@ const LedgerTable = ({ activities }) => {
                             <td className="ledger-table__date">{formatDate(act.date)}</td>
                             <td className="ledger-table__topic">
                                 <span className="ledger-table__node-name">{act.nodeName}</span>
-                            </td>
-                            <td className="ledger-table__focus">
-                                <span className={`focus-badge focus-badge--${act.selfAssessment || 3}`}>
-                                    {act.selfAssessment || '—'}/5
-                                </span>
                             </td>
                         </tr>
                     ))}

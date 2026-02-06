@@ -1,26 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Breadcrumbs } from '../Workspace'; // Assuming Breadcrumbs is exported or we redefine
+import { NodeBreadcrumbs } from './NodeBreadcrumbs';
 import { statsService } from '../../services/statsService';
 import { nodeService } from '../../services/nodeService';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 import { CreateActivityTypeModal } from '../CreateActivityTypeModal';
+import { WeeklyReviewModal } from '../WeeklyReviewModal';
 import { minutesToTimeStr, formatDate } from '../../utils/time';
-
-const LeafBreadcrumbs = ({ path }) => {
-    const parts = path?.split('/').filter(Boolean) || [];
-    const trail = ['Home', ...parts];
-    return (
-        <div className="breadcrumbs">
-            {trail.map((p, idx) => (
-                <span key={idx} className="breadcrumbs__item">
-                    {p}
-                    {idx < trail.length - 1 && <span className="breadcrumbs__sep">/</span>}
-                </span>
-            ))}
-        </div>
-    );
-};
 
 export const LeafView = ({ node, onRefresh }) => {
     const [stats, setStats] = useState(null);
@@ -30,6 +16,7 @@ export const LeafView = ({ node, onRefresh }) => {
 
 
     const [isCreateTypeModalOpen, setIsCreateTypeModalOpen] = useState(false);
+    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -79,9 +66,17 @@ export const LeafView = ({ node, onRefresh }) => {
             <div className="card card--loose">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div className="card__title" style={{ margin: 0, fontSize: 18 }}>{node.name}</div>
-                    <span className="chip">LEAF</span>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button
+                            className="btn btn--small btn--secondary"
+                            onClick={() => setIsReviewModalOpen(true)}
+                        >
+                            Review Week
+                        </button>
+                        <span className="chip">LEAF</span>
+                    </div>
                 </div>
-                <LeafBreadcrumbs path={node.path} />
+                <NodeBreadcrumbs path={node.path} />
             </div>
 
             {/* Alerts & Metrics */}
@@ -108,7 +103,7 @@ export const LeafView = ({ node, onRefresh }) => {
             <div className="card">
                 <div className="card__title">Success Curve (Focus Trend)</div>
                 <div style={{ width: '100%', height: 250 }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minHeight={100}>
                         <LineChart data={stats?.successCurve || []}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis
@@ -144,9 +139,6 @@ export const LeafView = ({ node, onRefresh }) => {
                             <li key={a.id} className="activity__row" style={{ display: 'block' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                     <div className="activity__title">{formatDate(a.date)} <span className="hint" style={{ fontWeight: 400 }}>— {type?.name || 'Unknown'}</span></div>
-                                    <div className="activity__meta">
-                                        <span>Focus {a.selfAssessment}/5</span>
-                                    </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                     {renderValuePreview(a, type)}
@@ -163,6 +155,12 @@ export const LeafView = ({ node, onRefresh }) => {
                 onCreated={() => {
                     loadData();
                 }}
+            />
+
+            <WeeklyReviewModal
+                isOpen={isReviewModalOpen}
+                onClose={() => setIsReviewModalOpen(false)}
+                node={node}
             />
         </div>
     );
