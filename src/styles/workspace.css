@@ -86,13 +86,15 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden; /* Ensure content scrolls inside */
+  overflow: visible; /* Ensure content scrolls inside */
+  position: relative;
 }
 
 .workspace__content {
     padding: 24px;
     flex: 1;
     overflow-y: auto;
+    min-height: 0;
 }
 
 .workspace__nav {
@@ -749,6 +751,9 @@
   border-top: 1px solid var(--border);
   background: var(--surface);
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 }
 
 .ledger__record-count {
@@ -925,4 +930,3 @@
   color: var(--danger);
   background: rgba(239, 68, 68, 0.1);
 }
-

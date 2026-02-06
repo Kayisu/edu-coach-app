@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 /**
  * TabBar Component
@@ -15,20 +16,36 @@ export const TabBar = ({ tabs, activeTabId, onTabClick, onTabClose }) => {
             {tabs.map(node => {
                 const isActive = node.id === activeTabId;
                 // Determine icon based on type
-                const icon = node.type === 'FOLDER' ? '📁' : '📝'; // Simple text icons for now, can be SVGs
+                const icon = node.type === 'FOLDER' ? '📁' : '📝';
 
                 return (
                     <div
                         key={node.id}
                         className={`tab ${isActive ? 'tab--active' : ''}`}
-                        onClick={() => onTabClick(node)}
+                    // onClick removed in favor of Link
                     >
-                        <span className="tab__icon">{icon}</span>
-                        <span className="tab__label">{node.name}</span>
+                        <Link
+                            to={`/workspace/${node.id}`}
+                            className="tab__link"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--spacing-xs, 6px)',
+                                textDecoration: 'none',
+                                color: 'inherit',
+                                flex: 1,
+                                height: '100%',
+                                paddingLeft: '8px'
+                            }}
+                        >
+                            <span className="tab__icon">{icon}</span>
+                            <span className="tab__label">{node.name}</span>
+                        </Link>
                         <button
                             className="tab__close"
                             onClick={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 onTabClose(node.id);
                             }}
                         >

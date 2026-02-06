@@ -79,6 +79,21 @@ export const nodeService = {
     },
 
     /**
+     * Fetches a single node by ID.
+     */
+    async fetchNodeById(nodeId: string): Promise<AppNode | null> {
+        try {
+            if (!pb.authStore.isValid) return null;
+            const record = await pb.collection('nodes').getOne<AppNode>(nodeId);
+            return record;
+        } catch (error) {
+            // It's common to return null if not found
+            console.warn('[nodeService] fetchNodeById failed or not found', nodeId);
+            return null;
+        }
+    },
+
+    /**
      * Creates a new node and auto-calculates the Materialized Path.
      */
     async createNode({ name, type, parentNode }: NodeCreateInput): Promise<AppNode> {
@@ -440,10 +455,12 @@ export const nodeService = {
                 values: values || {}
             };
 
-            if (record.self_assessment !== undefined && record.self_assessment !== null) {
+            if (record.self_assessment !== undefined && record.self_assessment !== null && record.self_assessment !== '') {
                 const parsedSelf = Number(record.self_assessment);
                 assert(Number.isFinite(parsedSelf) && parsedSelf >= 1 && parsedSelf <= 5, 'self_assessment must be between 1 and 5');
                 record.self_assessment = parsedSelf;
+            } else {
+                record.self_assessment = null;
             }
 
             if (payload.id) {

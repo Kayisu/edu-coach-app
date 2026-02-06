@@ -9,7 +9,7 @@ import { EditActivityModal } from './EditActivityModal';
  * Smart Activity Ledger
  * Week-based activity logging with cascading hierarchical node selection
  */
-export const Calendar = ({ tree, onRefresh }) => {
+export const Calendar = ({ tree, treeLoading, onRefresh }) => {
     const [activities, setActivities] = useState([]);
     const [newRows, setNewRows] = useState({}); // { [weekKey]: [...rows] }
     const [collapsedWeeks, setCollapsedWeeks] = useState(new Set());
@@ -192,8 +192,10 @@ export const Calendar = ({ tree, onRefresh }) => {
     // ========================================
 
     useEffect(() => {
-        loadData();
-    }, []);
+        if (!treeLoading) {
+            loadData();
+        }
+    }, [treeLoading, tree]);
 
     const loadData = async () => {
         setLoading(true);
@@ -297,25 +299,39 @@ export const Calendar = ({ tree, onRefresh }) => {
     };
 
     const saveNewRow = async (weekKey, row) => {
-        if (!row.leafId || !row.typeId) {
-            alert('Please complete the node path and select an activity type.');
+        const errors = {};
+        if (!row.leafId) errors.leafId = true;
+        if (!row.typeId) errors.typeId = true;
+
+        const type = getActivityType(row.typeId);
+        if (type && type.attributes) {
+            for (const attr of type.attributes) {
+                if (!attr.isNullable) {
+                    const val = row.values[attr.id];
+                    if (val === undefined || val === '' || val === null) {
+                        errors[attr.id] = true;
+                    }
+                }
+            }
+        }
+
+        if (Object.keys(errors).length > 0) {
+            updateNewRow(weekKey, row.tempId, { errors });
             return;
         }
 
         setSaving(prev => ({ ...prev, [row.tempId]: true }));
         try {
-            // Save with the week's middle date (Thursday = Monday + 3 days)
-            // This ensures the activity stays within the week regardless of timezone
             const dateParts = weekKey.split('-');
             const monday = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
-            monday.setDate(monday.getDate() + 3); // Add 3 days to get Thursday
+            monday.setDate(monday.getDate() + 3);
             const middleDate = monday.toISOString().split('T')[0];
 
             await nodeService.saveActivity({
                 nodeId: row.leafId,
                 typeId: row.typeId,
-                date: middleDate, // Save with the week's middle (Thursday)
-                selfAssessment: row.focus || 3,
+                date: middleDate,
+                selfAssessment: row.focus === 'null' ? null : (row.focus || 3),
                 values: row.values
             });
 
@@ -324,7 +340,8 @@ export const Calendar = ({ tree, onRefresh }) => {
             setActivities(acts);
             onRefresh?.();
         } catch (err) {
-            alert(err?.message || 'Failed to save activity');
+            console.error(err);
+            // Optional: show toast
         } finally {
             setSaving(prev => ({ ...prev, [row.tempId]: false }));
         }
@@ -439,7 +456,10 @@ export const Calendar = ({ tree, onRefresh }) => {
                                 onChange={(e) => {
                                     const selectedNode = level.options.find(n => n.id === e.target.value);
                                     handleSelect(idx, e.target.value, selectedNode?.type === 'LEAF');
+                                    // Clear error if any
+                                    if (row.errors?.leafId) updateNewRow(weekKey, row.tempId, { errors: { ...row.errors, leafId: false } });
                                 }}
+                                style={row.errors?.leafId ? { borderColor: 'var(--danger)' } : {}}
                             >
                                 <option value="">
                                     {idx === 0 ? 'Select category...' : 'Select...'}
@@ -598,6 +618,7 @@ export const Calendar = ({ tree, onRefresh }) => {
                                                     value={row.focus}
                                                     onChange={e => updateNewRow(week.key, row.tempId, { focus: parseInt(e.target.value) })}
                                                 >
+                                                    <option value="null">No Rating</option>
                                                     {[1, 2, 3, 4, 5].map(n => (
                                                         <option key={n} value={n}>{n}/5</option>
                                                     ))}

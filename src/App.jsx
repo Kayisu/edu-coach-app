@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate, useParams } from 'react-router-dom';
 import './index.css';
 import './styles/layout.css';
 import './styles/explorer.css';
@@ -16,9 +17,9 @@ import { Settings } from './components/Settings';
 import { Home } from './components/Home';
 import { Calendar } from './components/Calendar';
 
-function App() {
+// Inner component to use router hooks
+function AppContent() {
   const [tree, setTree] = useState([]);
-  const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [user, setUser] = useState(() => pb.authStore.model);
@@ -26,38 +27,32 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(() => Number(localStorage.getItem('sidebarWidth')) || 260);
   const [isResizing, setIsResizing] = useState(false);
   const layoutRef = useRef(null);
-  const [view, setView] = useState('workspace');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const [sideBarVisible, setSideBarVisible] = useState(true);
 
   /* Tabbed Navigation State */
   const [tabs, setTabs] = useState([]);
-  const [activeTabId, setActiveTabId] = useState(null);
 
-  /* Module Navigation State */
-  const [activeModule, setActiveModule] = useState('explorer');
-  const [sideBarVisible, setSideBarVisible] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // Auto-collapse sidebar when switching to Home/Calendar
+  // Determine active module based on path
+  const activeModule = useMemo(() => {
+    const path = location.pathname;
+    if (path.startsWith('/calendar')) return 'calendar';
+    if (path.startsWith('/settings')) return 'explorer'; // Settings keeps explorer context usually, or maybe 'settings'
+    if (path.startsWith('/workspace')) return 'explorer';
+    return 'home';
+  }, [location.pathname]);
+
+  // Auto-collapse sidebar logic
   useEffect(() => {
     if (activeModule === 'home' || activeModule === 'calendar') {
       setSideBarVisible(false);
-    } else if (activeModule === 'explorer') {
+    } else {
       setSideBarVisible(true);
     }
   }, [activeModule]);
-
-  const findById = useMemo(
-    () => (list, id) => {
-      const stack = [...(list || [])];
-      while (stack.length) {
-        const node = stack.pop();
-        if (node.id === id) return node;
-        if (node.children?.length) stack.push(...node.children);
-      }
-      return null;
-    },
-    []
-  );
 
   const refresh = async () => {
     setError('');
@@ -66,7 +61,6 @@ function App() {
       if (!pb.authStore.isValid) {
         setTree([]);
         setTabs([]);
-        setActiveTabId(null);
         return;
       }
       const data = await nodeService.fetchNodeTree();
@@ -84,13 +78,6 @@ function App() {
 
       setTabs(prev => {
         const validTabs = prev.filter(t => allNodeIds.has(t.id));
-        // If active tab was removed, switch to another or clear
-        if (validTabs.length < prev.length) {
-          const newActiveExists = validTabs.some(t => t.id === activeTabId);
-          if (!newActiveExists) {
-            setActiveTabId(validTabs.length > 0 ? validTabs[0].id : null);
-          }
-        }
         return validTabs;
       });
     } catch (err) {
@@ -107,14 +94,16 @@ function App() {
       if (!model) {
         setTree([]);
         setTabs([]);
-        setActiveTabId(null);
+        navigate('/login');
       } else {
         refresh();
+        if (location.pathname === '/login') {
+          navigate('/workspace');
+        }
       }
     });
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [navigate, location.pathname]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -122,13 +111,11 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Sidebar Resizing Logic - adjusted for triple-column layout
   useEffect(() => {
     if (!isResizing) return;
     const handleMove = (e) => {
       if (!layoutRef.current) return;
       const rect = layoutRef.current.getBoundingClientRect();
-      // Offset by activity bar width (64px)
       const next = e.clientX - rect.left - 64;
       const clamped = Math.min(450, Math.max(200, next));
       setSidebarWidth(clamped);
@@ -143,59 +130,12 @@ function App() {
     };
   }, [isResizing]);
 
-  if (!pb.authStore.isValid || !user) {
-    return <LoginPanel onLogin={refresh} />;
-  }
-
   const toggleCollapse = (id) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  };
-
-  const handleOpenTab = (node) => {
-    // Guard: if node is null (e.g., after deletion), don't try to open a tab
-    if (!node) return;
-
-    setView('workspace');
-    setActiveModule('explorer');
-    setTabs(prev => {
-      const exists = prev.find(t => t.id === node.id);
-      if (exists) return prev;
-      return [...prev, node];
-    });
-    setActiveTabId(node.id);
-  };
-
-  const handleCloseTab = (tabId) => {
-    setTabs(prev => {
-      const idx = prev.findIndex(t => t.id === tabId);
-      if (idx === -1) return prev;
-
-      const newTabs = prev.filter(t => t.id !== tabId);
-
-      if (tabId === activeTabId) {
-        if (newTabs.length > 0) {
-          const nextIdx = Math.min(idx, newTabs.length - 1);
-          setActiveTabId(newTabs[nextIdx].id);
-        } else {
-          setActiveTabId(null);
-        }
-      }
-      return newTabs;
-    });
-  };
-
-  const activeNode = useMemo(() => {
-    if (!activeTabId) return null;
-    return tabs.find(t => t.id === activeTabId) || null;
-  }, [tabs, activeTabId]);
-
-  const handleOpenSettings = () => {
-    setView('settings');
-    setActiveModule('explorer');
   };
 
   const collapseAll = () => {
@@ -211,16 +151,94 @@ function App() {
     setCollapsedIds(new Set(ids));
   };
 
-  const handleToggleSideBar = () => {
-    setSideBarVisible(v => !v);
+
+  // --- Navigation Handlers ---
+
+  const handleOpenTab = (node) => {
+    if (!node) return;
+    // Add to tabs if not present
+    setTabs(prev => {
+      if (prev.find(t => t.id === node.id)) return prev;
+      return [...prev, node];
+    });
+    // Navigate
+    navigate(`/workspace/${node.id}`);
   };
 
-  const displayName = (() => {
-    const email = user?.email;
-    if (email) return email.split('@')[0];
-    return user?.username || 'User';
-  })();
+  const handleCloseTab = (tabId) => {
+    setTabs(prev => {
+      const newTabs = prev.filter(t => t.id !== tabId);
+      // If we closed the active tab (based on URL), navigate to neighbors
+      // We can't easily check "active" here without param, but we can check if the closed tab is the current URL
+      // Actually, let's let the Workspace component handle redirect if the active node is closed?
+      // Or better: calculate next active here.
 
+      const match = location.pathname.match(/\/workspace\/([^/]+)/);
+      const currentId = match ? match[1] : null;
+
+      if (currentId === tabId) {
+        const idx = prev.findIndex(t => t.id === tabId);
+        if (newTabs.length > 0) {
+          const nextIdx = Math.min(idx, newTabs.length - 1);
+          navigate(`/workspace/${newTabs[nextIdx].id}`);
+        } else {
+          navigate('/workspace');
+        }
+      }
+      return newTabs;
+    });
+  };
+
+  const handleModuleChange = (mod) => {
+    if (mod === 'home') navigate('/');
+    if (mod === 'calendar') navigate('/calendar');
+    if (mod === 'explorer') navigate('/workspace');
+  };
+
+  const handleOpenSettings = () => {
+    navigate('/settings');
+  };
+
+  // Find node helper for sync
+  const findNode = (id) => {
+    const stack = [...tree];
+    while (stack.length) {
+      const node = stack.pop();
+      if (node.id === id) return node;
+      if (node.children) stack.push(...node.children);
+    }
+    return null;
+  };
+
+  const activeNode = useMemo(() => {
+    const match = location.pathname.match(/\/workspace\/([^/]+)/);
+    if (match && match[1]) {
+      return findNode(match[1]);
+    }
+    return null;
+  }, [location.pathname, tree]);
+
+  // Sync Params to Tabs
+  // If URL has ID, ensure it's in tabs
+  useEffect(() => {
+    if (activeNode) {
+      setTabs(prev => {
+        if (prev.find(t => t.id === activeNode.id)) return prev;
+        return [...prev, activeNode];
+      });
+    }
+  }, [activeNode]);
+
+  if (!pb.authStore.isValid || !user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPanel onLogin={refresh} />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  const displayName = user.email ? user.email.split('@')[0] : (user.username || 'User');
   const layoutClass = `layout layout--triple ${!sideBarVisible ? 'sidebar-hidden' : ''}`;
 
   return (
@@ -228,7 +246,7 @@ function App() {
       <AppHeader
         title={`Welcome, ${displayName}`}
         user={user}
-        onLogout={authService.logout}
+        onLogout={() => { authService.logout(); navigate('/login'); }}
         theme={theme}
         onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
         onOpenSettings={handleOpenSettings}
@@ -236,8 +254,8 @@ function App() {
       <div className={layoutClass} ref={layoutRef}>
         <ActivityBar
           activeModule={activeModule}
-          onModuleChange={setActiveModule}
-          onToggleSideBar={handleToggleSideBar}
+          onModuleChange={handleModuleChange}
+          onToggleSideBar={() => setSideBarVisible(v => !v)}
         />
 
         {sideBarVisible && (
@@ -268,35 +286,41 @@ function App() {
         )}
 
         <main className="workspace">
-          {activeModule === 'home' && (
-            <Home tree={tree} onOpenTab={handleOpenTab} />
-          )}
-
-          {activeModule === 'calendar' && (
-            <Calendar tree={tree} onRefresh={refresh} />
-          )}
-
-          {activeModule === 'explorer' && (
-            view === 'settings' ? (
-              <Settings
-                theme={theme}
-                onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-              />
-            ) : (
+          <Routes>
+            <Route path="/" element={<Navigate to="/workspace" replace />} />
+            <Route path="/workspace" element={<Home tree={tree} onOpenTab={handleOpenTab} />} />
+            <Route path="/workspace/:nodeId" element={
               <Workspace
                 node={activeNode}
+                tree={tree}
                 tabs={tabs}
-                activeTabId={activeTabId}
-                onTabClick={(node) => setActiveTabId(node.id)}
+                activeTabId={activeNode?.id}
+                onTabClick={(n) => navigate(`/workspace/${n.id}`)}
                 onTabClose={handleCloseTab}
                 onRefresh={refresh}
                 onOpenSettings={handleOpenSettings}
               />
-            )
-          )}
+            } />
+            <Route path="/calendar" element={<Calendar tree={tree} treeLoading={loading} onRefresh={refresh} />} />
+            <Route path="/settings" element={
+              <Settings
+                theme={theme}
+                onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              />
+            } />
+            <Route path="*" element={<div className="empty">Page not found</div>} />
+          </Routes>
         </main>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
 

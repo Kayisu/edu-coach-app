@@ -6,19 +6,20 @@ import { minutesToTimeStr, timeStrToMinutes } from '../utils/time';
 export const EditActivityModal = ({ isOpen, onClose, activity, activityTypes, onSave }) => {
     const [typeId, setTypeId] = useState('');
     const [date, setDate] = useState('');
-    const [assessment, setAssessment] = useState(3);
+    const [assessment, setAssessment] = useState('');
     const [values, setValues] = useState({});
+    const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         if (isOpen && activity) {
-            // Load activity data
             setTypeId(activity.typeId);
-            // Handle date string (take YYYY-MM-DD part)
             const dateStr = activity.date.includes('T') ? activity.date.split('T')[0] : activity.date;
             setDate(dateStr);
-            setAssessment(activity.selfAssessment || 3);
+            // Handle null/0 as empty string for select
+            setAssessment(activity.selfAssessment ? String(activity.selfAssessment) : '');
             setValues(activity.values || {});
+            setErrors({});
         }
     }, [isOpen, activity]);
 
@@ -26,96 +27,112 @@ export const EditActivityModal = ({ isOpen, onClose, activity, activityTypes, on
 
     const handleValueChange = (attrId, val) => {
         setValues(prev => ({ ...prev, [attrId]: val }));
+        if (errors[attrId]) {
+            setErrors(prev => {
+                const next = { ...prev };
+                delete next[attrId];
+                return next;
+            });
+        }
     };
 
     const handleSubmit = async () => {
         if (!selectedType) return;
-        setSaving(true);
-        try {
-            const processedValues = { ...values };
 
-            // Validate & Convert
-            for (const attr of selectedType.attributes) {
-                const rawVal = processedValues[attr.id];
+        const newErrors = {};
+        const processedValues = { ...values };
 
-                // Check required
-                if (!attr.isNullable && (rawVal === undefined || rawVal === '' || rawVal === null)) {
-                    throw new Error(`Field "${attr.name}" is required`);
-                }
+        // Validate
+        for (const attr of selectedType.attributes) {
+            const rawVal = processedValues[attr.id];
 
-                // Strict Casting based on DataType
-                if (attr.dataType === 'number') {
-                    if (rawVal !== '' && rawVal !== undefined && rawVal !== null) {
-                        const num = Number(rawVal);
-                        if (isNaN(num)) throw new Error(`"${attr.name}" must be a valid number`);
-                        processedValues[attr.id] = num;
-                    }
-                } else if (attr.dataType === 'duration') {
-                    // Expect "HH:MM" string, convert to minutes
-                    if (typeof rawVal === 'string' && rawVal.includes(':')) {
-                        const mins = timeStrToMinutes(rawVal);
-                        processedValues[attr.id] = mins;
-                    } else if (typeof rawVal === 'number') {
-                        processedValues[attr.id] = rawVal;
-                    }
-                }
+            // Required check
+            if (!attr.isNullable && (rawVal === undefined || rawVal === '' || rawVal === null)) {
+                newErrors[attr.id] = `Field "${attr.name}" cannot be empty.`;
             }
 
+            // Type conversion
+            if (attr.dataType === 'number') {
+                if (rawVal !== '' && rawVal !== undefined && rawVal !== null) {
+                    const num = Number(rawVal);
+                    if (isNaN(num)) newErrors[attr.id] = `"${attr.name}" must be a number`;
+                    else processedValues[attr.id] = num;
+                }
+            } else if (attr.dataType === 'duration') {
+                if (typeof rawVal === 'string' && rawVal.includes(':')) {
+                    processedValues[attr.id] = timeStrToMinutes(rawVal);
+                }
+            }
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        setSaving(true);
+        try {
             await nodeService.saveActivity({
                 id: activity.id,
                 nodeId: activity.nodeId,
-                typeId, // Usually we don't change type on edit, but allowing it for flexibility
+                typeId,
                 date,
-                selfAssessment: Number(assessment),
+                selfAssessment: assessment ? Number(assessment) : null,
                 values: processedValues
             });
 
             setSaving(false);
-            onSave(); // Parent handles refresh
+            onSave();
             onClose();
-
         } catch (err) {
-            alert(err.message);
+            alert(err.message); // Fallback for server errors
             setSaving(false);
         }
     };
 
     const renderInput = (attr) => {
         const val = values[attr.id] || '';
+        const hasError = !!errors[attr.id];
+        const style = hasError ? { borderColor: 'var(--danger)' } : {};
+
+        let input = (
+            <input
+                type="text"
+                value={val}
+                onChange={e => handleValueChange(attr.id, e.target.value)}
+                className="input"
+                style={style}
+            />
+        );
 
         if (attr.dataType === 'duration') {
-            return (
+            input = (
                 <input
                     type="time"
                     step="60"
                     value={val || '00:00'}
                     onChange={e => handleValueChange(attr.id, e.target.value)}
                     className="input"
-                    required={!attr.isNullable}
+                    style={style}
                 />
             );
-        }
-
-        if (attr.dataType === 'number') {
-            return (
+        } else if (attr.dataType === 'number') {
+            input = (
                 <input
                     type="number"
                     value={val}
                     onChange={e => handleValueChange(attr.id, e.target.value)}
                     className="input"
-                    required={!attr.isNullable}
+                    style={style}
                 />
             );
         }
 
         return (
-            <input
-                type="text"
-                value={val}
-                onChange={e => handleValueChange(attr.id, e.target.value)}
-                className="input"
-                required={!attr.isNullable}
-            />
+            <div className="stack" style={{ gap: 4 }}>
+                {input}
+                {hasError && <span style={{ color: 'var(--danger)', fontSize: 11 }}>{errors[attr.id]}</span>}
+            </div>
         );
     };
 
@@ -131,17 +148,14 @@ export const EditActivityModal = ({ isOpen, onClose, activity, activityTypes, on
             confirmLabel={saving ? 'Updating...' : 'Update'}
             description={
                 <div className="form stack" style={{ marginTop: 10 }}>
-                    {/* Activity Type - Disabled/Readonly or Selectable? 
-                        Ideally selectable, but changing type might invalidate values. 
-                        Let's keep it selectable but be aware values might match poorly.
-                    */}
                     <div className="form__field">
                         <span>Activity Type</span>
                         <select
                             value={typeId}
                             onChange={e => {
                                 setTypeId(e.target.value);
-                                setValues({}); // Reset values on type change to avoid partial mismatch
+                                setValues({});
+                                setErrors({});
                             }}
                             className="input"
                         >
@@ -151,27 +165,22 @@ export const EditActivityModal = ({ isOpen, onClose, activity, activityTypes, on
                         </select>
                     </div>
 
-                    {/* Global Fields */}
                     <div className="row-spaced" style={{ display: 'flex', gap: 12 }}>
-
                         <div className="form__field" style={{ flex: 1 }}>
-                            <span>Self Assessment (1-5)</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, height: 38, width: '100%' }}>
-                                <div style={{ flex: 1, position: 'relative', height: 24, display: 'flex', alignItems: 'center' }}>
-                                    <input
-                                        type="range"
-                                        min="1" max="5" step="1"
-                                        value={assessment}
-                                        onChange={e => setAssessment(e.target.value)}
-                                        style={{ width: '100%' }}
-                                    />
-                                </div>
-                                <span style={{ fontWeight: 'bold', width: 20, textAlign: 'center' }}>{assessment}</span>
-                            </div>
+                            <span>Focus / Self Assessment</span>
+                            <select
+                                className="input"
+                                value={assessment}
+                                onChange={e => setAssessment(e.target.value)}
+                            >
+                                <option value="">No Rating</option>
+                                {[1, 2, 3, 4, 5].map(n => (
+                                    <option key={n} value={n}>{n}/5</option>
+                                ))}
+                            </select>
                         </div>
                     </div>
 
-                    {/* Dynamic Attributes */}
                     {selectedType?.attributes.map(attr => (
                         <div key={attr.id} className="form__field">
                             <span>{attr.name} {attr.isNullable && <span className="hint">(Optional)</span>}</span>
