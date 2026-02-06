@@ -16,6 +16,8 @@ export const Modal = ({
   cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
+  children,
+  footer
 }) => {
   const [visible, setVisible] = useState(false);
   const [animating, setAnimating] = useState(false);
@@ -95,20 +97,24 @@ export const Modal = ({
         </div>
 
         <div className="dialog__body">
-          {description}
+          {children || description}
         </div>
 
         <div className="dialog__actions">
-          <button className="btn btn--ghost" onClick={onCancel}>
-            {cancelLabel}
-          </button>
-          <button
-            ref={confirmRef}
-            className={`btn ${variant === 'danger' ? 'btn--danger' : ''}`}
-            onClick={() => onConfirm()}
-          >
-            {confirmLabel}
-          </button>
+          {footer ? footer : (
+            <>
+              <button className="btn btn--ghost" onClick={onCancel}>
+                {cancelLabel}
+              </button>
+              <button
+                ref={confirmRef}
+                className={`btn ${variant === 'danger' ? 'btn--danger' : ''}`}
+                onClick={() => onConfirm && onConfirm()}
+              >
+                {confirmLabel}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>,

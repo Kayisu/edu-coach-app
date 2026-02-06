@@ -4,12 +4,12 @@ import { statsService } from '../services/statsService';
 import { formatDate } from '../utils/time';
 
 /**
- * Home Module - Strategic Command Center
- * Displays Active Contexts (root folders as goals) and The Ledger (recent activity).
+ * Home Module - Strategic Command Center (Dashboard v2.0)
+ * Replaces the old Ledger with a high-level dashboard.
  */
 export const Home = ({ tree, onOpenTab }) => {
     const [contexts, setContexts] = useState([]);
-    const [ledger, setLedger] = useState([]);
+    const [weeklySummary, setWeeklySummary] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -19,10 +19,8 @@ export const Home = ({ tree, onOpenTab }) => {
     const loadHomeData = async () => {
         setLoading(true);
         try {
-            // Contexts are root-level folders (independent goals like YKS, ALES)
+            // 1. Contexts (Root Folders)
             const rootFolders = tree.filter(n => n.type === 'FOLDER');
-
-            // Fetch stats for each root folder
             const contextsWithStats = await Promise.all(
                 rootFolders.map(async (folder) => {
                     try {
@@ -35,40 +33,18 @@ export const Home = ({ tree, onOpenTab }) => {
             );
             setContexts(contextsWithStats);
 
-            // Fetch recent activities for the ledger (all nodes, last 20)
-            const allActivities = await fetchRecentActivities(20);
-            setLedger(allActivities);
+            // 2. Weekly Summary Mock (To be connected to real aggregation later)
+            // This replaces the raw ledger with summarized insights
+            setWeeklySummary([
+                { id: 1, label: 'Total Hours', value: '12.5', trend: '+20%', isGood: true },
+                { id: 2, label: 'Efficiency', value: '8.4', trend: '-2%', isGood: false },
+                { id: 3, label: 'Active Topics', value: '4', trend: 'Stable', isNeutral: true },
+            ]);
+
         } catch (err) {
             console.error('Failed to load home data:', err);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const fetchRecentActivities = async (limit) => {
-        // Fetch activities from all leaf nodes
-        try {
-            const leafNodes = [];
-            const stack = [...tree];
-            while (stack.length) {
-                const node = stack.pop();
-                if (node.type === 'LEAF') leafNodes.push(node);
-                if (node.children?.length) stack.push(...node.children);
-            }
-
-            // Fetch recent activities from each leaf (limited)
-            const allActs = [];
-            for (const leaf of leafNodes.slice(0, 10)) {
-                const acts = await nodeService.fetchActivitiesByNode(leaf.id, 5);
-                acts.forEach(a => allActs.push({ ...a, nodeName: leaf.name, nodePath: leaf.path }));
-            }
-
-            // Sort by date descending and take top N
-            return allActs
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .slice(0, limit);
-        } catch {
-            return [];
         }
     };
 
@@ -81,11 +57,74 @@ export const Home = ({ tree, onOpenTab }) => {
     }
 
     return (
-        <div className="home">
+        <div className="home stack" style={{ gap: 32, paddingBottom: 40 }}>
             <header className="home__header">
-                <h1 className="home__title">Strategic Command Center</h1>
-                <p className="home__subtitle">Your active learning contexts at a glance</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div>
+                        <h1 className="home__title">Strategic Command Center</h1>
+                        <p className="home__subtitle">Weekly Overview & Active Fronts</p>
+                    </div>
+                    <div className="date-display" style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Current Week
+                        </div>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {(() => {
+                                const d = new Date();
+                                const day = d.getDay();
+                                const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+                                const start = new Date(d.setDate(diff));
+                                const end = new Date(new Date(start).setDate(start.getDate() + 6));
+
+                                const format = (date) => date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                return `${format(start)} - ${format(end)}`;
+                            })()}
+                        </div>
+                    </div>
+                </div>
             </header>
+
+            {/* Weekly Overview Section (New) */}
+            <section>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: 16
+                }}>
+                    {weeklySummary.map(stat => (
+                        <div key={stat.id} className="card" style={{ padding: 20 }}>
+                            <div style={{ fontSize: 13, color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em', marginBottom: 8 }}>
+                                {stat.label}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                                <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)' }}>
+                                    {stat.value}
+                                </div>
+                                <div style={{
+                                    fontSize: 14,
+                                    fontWeight: 600,
+                                    color: stat.isGood ? 'var(--success)' : stat.isNeutral ? 'var(--text-secondary)' : '#ef4444'
+                                }}>
+                                    {stat.trend}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Placeholder for "Weekly Report Card" summary */}
+                    <div className="card" style={{ padding: 20, background: 'linear-gradient(135deg, var(--surface) 0%, rgba(99, 102, 241, 0.05) 100%)', border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 13, color: 'var(--primary)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em', marginBottom: 8 }}>
+                            Latest Review
+                        </div>
+                        <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                            "Solid Progress"
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                            Logged 2 days ago
+                        </div>
+                    </div>
+                </div>
+            </section>
 
             {/* Active Contexts Section */}
             <section className="home__contexts">
@@ -104,79 +143,63 @@ export const Home = ({ tree, onOpenTab }) => {
                     </div>
                 )}
             </section>
-
-            {/* The Ledger Section */}
-            <section className="home__ledger">
-                <h2 className="home__section-title">The Ledger</h2>
-                {ledger.length === 0 ? (
-                    <div className="hint">No recent activity. Start logging sessions to see your progress.</div>
-                ) : (
-                    <LedgerTable activities={ledger} />
-                )}
-            </section>
         </div>
     );
 };
 
 /**
- * Context Card - Displays a single goal/context with stats
+ * Context Card - Displays a single goal/context with stats (Refined)
  */
 const ContextCard = ({ context, onClick }) => {
     const stats = context.stats || {};
 
     return (
-        <div className="context-card" onClick={onClick}>
-            <div className="context-card__header">
-                <span className="context-card__icon">📂</span>
-                <h3 className="context-card__name">{context.name}</h3>
+        <div className="context-card" onClick={onClick} style={{ cursor: 'pointer', transition: 'transform 0.2s', position: 'relative' }}>
+            <div className="context-card__header" style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                        width: 32, height: 32,
+                        borderRadius: 6,
+                        background: 'rgba(99, 102, 241, 0.1)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: 'var(--primary)'
+                    }}>
+                        📂
+                    </div>
+                    <div>
+                        <h3 className="context-card__name" style={{ margin: 0, fontSize: 16 }}>{context.name}</h3>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{context.children?.length || 0} Topics</div>
+                    </div>
+                </div>
             </div>
-            <div className="context-card__stats">
+
+            <div className="context-card__stats" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="context-card__stat">
-                    <span className="context-card__stat-value">{stats.totalActivities || 0}</span>
+                    <span className="context-card__stat-value" style={{ fontSize: 20 }}>{stats.totalActivities || 0}</span>
                     <span className="context-card__stat-label">Sessions</span>
                 </div>
                 <div className="context-card__stat">
-                    <span className="context-card__stat-value">{stats.averageFocus || '—'}</span>
-                    <span className="context-card__stat-label">Wkly Avg</span>
-                </div>
-                <div className="context-card__stat">
-                    <span className="context-card__stat-value">{context.children?.length || 0}</span>
-                    <span className="context-card__stat-label">Topics</span>
+                    <span className="context-card__stat-value" style={{ fontSize: 20 }}>{stats.averageFocus || '—'}</span>
+                    <span className="context-card__stat-label">Avg Focus</span>
                 </div>
             </div>
+
             {stats.weakestLink && (
-                <div className="context-card__alert">
-                    ⚠ Attention: {stats.weakestLink.name}
+                <div style={{
+                    marginTop: 16,
+                    padding: '8px 12px',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    borderRadius: 6,
+                    border: '1px solid rgba(239, 68, 68, 0.15)',
+                    fontSize: 12,
+                    color: '#f87171',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                }}>
+                    <span>⚠</span> Focus Need: <strong>{stats.weakestLink.name}</strong>
                 </div>
             )}
-        </div>
-    );
-};
-
-/**
- * Ledger Table - High-contrast activity log
- */
-const LedgerTable = ({ activities }) => {
-    return (
-        <div className="ledger-table-wrapper">
-            <table className="ledger-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Topic</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {activities.map((act, idx) => (
-                        <tr key={act.id || idx}>
-                            <td className="ledger-table__date">{formatDate(act.date)}</td>
-                            <td className="ledger-table__topic">
-                                <span className="ledger-table__node-name">{act.nodeName}</span>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
         </div>
     );
 };

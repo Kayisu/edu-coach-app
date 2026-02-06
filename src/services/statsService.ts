@@ -40,23 +40,31 @@ export const statsService = {
             limit: 500,
         });
 
-        // 3. Process Activity Heatmap (Count by Date)
+        // 3. Process Activity Heatmap & Topic Distribution
         const heatmap: Record<string, number> = {};
+        const countsByNode: Record<string, number> = {};
 
         activities.forEach((act: any) => {
             heatmap[act.date] = (heatmap[act.date] || 0) + 1;
+            countsByNode[act.node_id] = (countsByNode[act.node_id] || 0) + 1;
         });
 
-        // 4. Fetch Weekly Reviews for Average Focus / Weakest Link
-        // We need week starts for recent history. 
-        // For simplicity, let's fetch ALL weekly reviews for these leaves for the last 30 days or so?
-        // Or just fetch all reviews for these nodes.
-        // Optimization: Single query for all reviews on these nodes.
+        // Map counts to Names
+        const topicDistribution = leaves
+            .map(leaf => ({
+                name: leaf.name,
+                value: countsByNode[leaf.id] || 0
+            }))
+            .filter(item => item.value > 0)
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 5); // Start with top 5
+
+        // 4. Fetch Weekly Reviews...
         const leafFilter = leafIds.map((id: string) => `node_id="${id}"`).join(' || ');
         const reviews = await pb.collection('weekly_reviews').getFullList({
             filter: leafFilter,
             sort: '-week_start',
-        }); // Returns items with rating
+        });
 
         let totalRating = 0;
         let ratingCount = 0;
@@ -90,8 +98,11 @@ export const statsService = {
         });
 
         return {
-            heatmap, // { "YYYY-MM-DD": count }
-            weakestLink, // { name, id, averageRating }
+            heatmap,
+            topicDistribution,
+            weakestLink,
+            activeTopics: Object.keys(countsByNode).length,
+            totalTopics: leaves.length,
             totalActivities: activities.length,
             averageFocus: ratingCount > 0 ? (totalRating / ratingCount).toFixed(1) : 0
         };

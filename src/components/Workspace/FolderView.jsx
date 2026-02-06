@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { statsService } from '../../services/statsService';
 import { NodeBreadcrumbs } from './NodeBreadcrumbs';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export const FolderView = ({ node }) => {
     const [stats, setStats] = useState(null);
@@ -22,50 +23,44 @@ export const FolderView = ({ node }) => {
         }
     };
 
-    const renderHeatmap = () => {
-        if (!stats?.heatmap) return null;
-        // Generate last 60 days
-        const days = [];
-        const today = new Date();
-        for (let i = 59; i >= 0; i--) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
-            const str = d.toISOString().split('T')[0];
-            days.push({ date: str, count: stats.heatmap[str] || 0 });
+    const renderDistributionChart = () => {
+        if (!stats?.topicDistribution || stats.topicDistribution.length === 0) {
+            return (
+                <div className="empty" style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    No activity data available yet.
+                </div>
+            );
         }
 
         return (
-            <div className="heatmap-grid" style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(20, 1fr)',
-                gap: 4,
-                marginTop: 16
-            }}>
-                {days.map(d => {
-                    // 0-4 scale: 0=Empty, 1-4=Intensity
-                    const intensity = Math.min(d.count, 4);
-                    let bg = 'var(--surface)'; // Default empty (Slate-900/White)
-
-                    if (intensity === 0) bg = 'var(--bg)'; // Slightly distinct from card bg
-                    if (intensity === 1) bg = 'var(--muted)'; // Low activity
-                    if (intensity === 2) bg = 'var(--accent)'; // Medium
-                    if (intensity === 3) bg = 'var(--accent-strong)'; // High
-                    if (intensity >= 4) bg = 'var(--text)'; // Peak (White/Slate-900)
-
-                    return (
-                        <div
-                            key={d.date}
-                            title={`${d.date}: ${d.count} activities`}
-                            style={{
-                                aspectRatio: '1',
-                                borderRadius: 3,
-                                backgroundColor: bg,
-                                opacity: intensity === 0 ? 0.5 : 1,
-                                transition: 'opacity 0.2s'
-                            }}
+            <div style={{ width: '100%', height: 220 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                        layout="vertical"
+                        data={stats.topicDistribution}
+                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                    >
+                        <XAxis type="number" hide />
+                        <YAxis
+                            dataKey="name"
+                            type="category"
+                            width={100}
+                            tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
+                            axisLine={false}
+                            tickLine={false}
                         />
-                    );
-                })}
+                        <Tooltip
+                            cursor={{ fill: 'var(--surface)' }}
+                            contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8 }}
+                            itemStyle={{ color: 'var(--text-primary)' }}
+                        />
+                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
+                            {stats.topicDistribution.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--primary)' : 'var(--accent)'} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
             </div>
         );
     };
@@ -84,13 +79,9 @@ export const FolderView = ({ node }) => {
             </div>
 
             <div className="row-spaced" style={{ display: 'flex', gap: 16 }}>
-                <div className="card" style={{ flex: 1 }}>
-                    <div className="card__title">Activity Heatmap (Last 60 Days)</div>
-                    {renderHeatmap()}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 11, color: 'var(--muted)' }}>
-                        <span>Less</span>
-                        <span>More</span>
-                    </div>
+                <div className="card" style={{ flex: 1.5 }}>
+                    <div className="card__title">Most Active Topics</div>
+                    {renderDistributionChart()}
                 </div>
 
                 <div className="stack" style={{ flex: 1 }}>
@@ -102,8 +93,11 @@ export const FolderView = ({ node }) => {
                                 <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>{stats?.totalActivities || 0}</div>
                             </div>
                             <div>
-                                <div className="text-sm text-muted">Avg Focus</div>
-                                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>{stats?.averageFocus || 0}<span className="text-muted text-sm" style={{ fontWeight: 400 }}>/5</span></div>
+                                <div className="text-sm text-muted">Topics Engaged</div>
+                                <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>
+                                    {stats?.activeTopics || 0}
+                                    <span className="text-muted text-sm" style={{ fontWeight: 400, marginLeft: 4 }}>/ {stats?.totalTopics || 0}</span>
+                                </div>
                             </div>
                         </div>
                     </div>

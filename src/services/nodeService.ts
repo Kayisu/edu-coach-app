@@ -481,15 +481,21 @@ export const nodeService = {
     /**
      * Fetches a global weekly review for a specific week.
      */
-    async fetchWeeklyReview(weekStart: string): Promise<WeeklyReview | null> {
+    /**
+     * Fetches a global weekly review for a specific week or node-specific review.
+     * ADDED: Optional nodeId support.
+     */
+    async fetchWeeklyReview(nodeId: string, weekStart: string): Promise<WeeklyReview | null> {
         try {
             if (!pb.authStore.isValid) return null;
             const userId = pb.authStore.model?.id;
             if (!userId) return null;
 
-            // Check if exists (Global: only user + week)
+            assert(isNonEmptyString(nodeId), 'nodeId is required for fetchWeeklyReview');
+
+            // Fetch review for specific user, node, and week
             const list = await pb.collection('weekly_reviews').getList(1, 1, {
-                filter: `user_id = "${userId}" && week_start = "${weekStart}"`
+                filter: `user_id = "${userId}" && node_id = "${nodeId}" && week_start = "${weekStart}"`
             });
 
             if (list.items.length === 0) return null;
@@ -521,19 +527,21 @@ export const nodeService = {
             const userId = pb.authStore.model?.id;
             assert(isNonEmptyString(userId), 'Missing user context');
 
-            const { weekStart, rating, notes } = review;
+            const { weekStart, rating, notes, nodeId } = review;
             assert(isNonEmptyString(weekStart), 'weekStart is required');
+            assert(isNonEmptyString(nodeId), 'nodeId is required for saveWeeklyReview');
 
             // Check rating
             if (rating !== undefined) {
                 assert(Number.isFinite(rating) && rating >= 1 && rating <= 5, 'Rating must be 1-5');
             }
 
-            // Check if exists logic
-            const existing = await nodeService.fetchWeeklyReview(weekStart!);
+            // Check if exists logic using the updated fetch which requires nodeId
+            const existing = await nodeService.fetchWeeklyReview(nodeId!, weekStart!);
 
             const payload = {
                 user_id: userId,
+                node_id: nodeId,
                 week_start: weekStart,
                 rating,
                 notes
