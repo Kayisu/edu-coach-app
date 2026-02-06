@@ -1,280 +1,699 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { nodeService } from '../services/nodeService';
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon, SaveIcon, DeleteIcon, RenameIcon as EditIcon } from '../assets/icons';
+import { Modal } from './Modal';
+
+import { EditActivityModal } from './EditActivityModal';
 
 /**
- * Calendar Module - Weekly Batch Entry Grid
- * Excel-like grid for quick Duration:Focus logging across the week.
+ * Smart Activity Ledger
+ * Week-based activity logging with cascading hierarchical node selection
  */
 export const Calendar = ({ tree, onRefresh }) => {
-    const [selectedParentId, setSelectedParentId] = useState('');
-    const [entries, setEntries] = useState({}); // { [nodeId-dayIndex]: { duration: string, focus: number } }
-    const [saving, setSaving] = useState(false);
+    const [activities, setActivities] = useState([]);
+    const [newRows, setNewRows] = useState({}); // { [weekKey]: [...rows] }
+    const [collapsedWeeks, setCollapsedWeeks] = useState(new Set());
     const [activityTypes, setActivityTypes] = useState([]);
-    const [selectedTypeId, setSelectedTypeId] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState({});
+    const [addedWeeks, setAddedWeeks] = useState(new Set());
+    const [showWeekPicker, setShowWeekPicker] = useState(false);
 
-    // Get all folders for parent selection
-    const folders = useMemo(() => {
-        const result = [];
-        const stack = [...tree];
-        while (stack.length) {
-            const node = stack.pop();
-            if (node.type === 'FOLDER') {
-                result.push(node);
-                if (node.children?.length) stack.push(...node.children);
-            }
+    // Delete/Edit State
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, activityId: null });
+    const [editModal, setEditModal] = useState({ isOpen: false, activity: null, node: null });
+
+    // ========================================
+    // WEEK UTILITIES
+    // ========================================
+
+    const getMonday = useCallback((date) => {
+        const d = new Date(date);
+        const day = d.getDay();
+        const diff = day === 0 ? -6 : 1 - day;
+        d.setDate(d.getDate() + diff);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }, []);
+
+    const formatWeekLabel = useCallback((start, end) => {
+        const formatDate = (d) => {
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = String(d.getFullYear()).slice(-2);
+            return `${day}.${month}.${year}`;
+        };
+        return `${formatDate(start)} - ${formatDate(end)}`;
+    }, []);
+
+    const getWeekNumber = useCallback((date) => {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+        const yearStart = new Date(d.getFullYear(), 0, 1);
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    }, []);
+
+    // Generate available weeks for picker (last 16 weeks)
+    const availableWeeks = useMemo(() => {
+        const weeks = [];
+        const today = new Date();
+        const currentMonday = getMonday(today);
+
+        for (let i = 0; i < 16; i++) {
+            const weekStart = new Date(currentMonday);
+            weekStart.setDate(currentMonday.getDate() - (i * 7));
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+
+            weeks.push({
+                key: weekStart.toISOString().split('T')[0],
+                start: weekStart,
+                end: weekEnd,
+                label: formatWeekLabel(weekStart, weekEnd),
+                weekNumber: getWeekNumber(weekStart)
+            });
         }
-        return result.sort((a, b) => a.path.localeCompare(b.path));
-    }, [tree]);
+        return weeks;
+    }, [getMonday, formatWeekLabel, getWeekNumber]);
 
-    // Get leaf children of selected parent
-    const leafNodes = useMemo(() => {
-        if (!selectedParentId) return [];
-        const findNode = (nodes, id) => {
-            for (const n of nodes) {
-                if (n.id === id) return n;
-                if (n.children?.length) {
-                    const found = findNode(n.children, id);
+    // Active weeks shown in the list
+    const activeWeeks = useMemo(() => {
+        const weekSet = new Map();
+
+        // Add weeks from existing activities
+        activities.forEach(act => {
+            // Parse date string safely to avoid timezone issues
+            const dateParts = act.date.split('-');
+            const actDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+            const weekStart = getMonday(actDate);
+            const key = weekStart.toISOString().split('T')[0];
+            if (!weekSet.has(key)) {
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                weekSet.set(key, {
+                    key,
+                    start: weekStart,
+                    end: weekEnd,
+                    label: formatWeekLabel(weekStart, weekEnd),
+                    weekNumber: getWeekNumber(weekStart)
+                });
+            }
+        });
+
+        // Add manually added weeks from picker
+        addedWeeks.forEach(key => {
+            if (!weekSet.has(key)) {
+                const week = availableWeeks.find(w => w.key === key);
+                if (week) weekSet.set(key, week);
+            }
+        });
+
+        // Always include current week
+        const currentKey = availableWeeks[0]?.key;
+        if (currentKey && !weekSet.has(currentKey)) {
+            weekSet.set(currentKey, availableWeeks[0]);
+        }
+
+        return Array.from(weekSet.values()).sort((a, b) =>
+            new Date(b.key) - new Date(a.key)
+        );
+    }, [activities, addedWeeks, availableWeeks, getMonday, formatWeekLabel, getWeekNumber]);
+
+    // ========================================
+    // HIERARCHICAL NODE HELPERS
+    // ========================================
+
+    const buildNodePath = useCallback((nodeId) => {
+        const findPath = (nodes, targetId, currentPath) => {
+            for (const node of nodes) {
+                if (node.id === targetId) {
+                    return [...currentPath, node];
+                }
+                if (node.children?.length) {
+                    const found = findPath(node.children, targetId, [...currentPath, node]);
                     if (found) return found;
                 }
             }
             return null;
         };
-        const parent = findNode(tree, selectedParentId);
-        return parent?.children?.filter(n => n.type === 'LEAF') || [];
-    }, [tree, selectedParentId]);
+        return findPath(tree, nodeId, []) || [];
+    }, [tree]);
 
-    // Get current week dates (Mon-Sun)
-    const weekDates = useMemo(() => {
-        const today = new Date();
-        const dayOfWeek = today.getDay();
-        const monday = new Date(today);
-        // Adjust to Monday (Sunday = 0, so we go back 6 days; Monday = 1, go back 0)
-        const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        monday.setDate(today.getDate() - diff);
-
-        const dates = [];
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(monday);
-            d.setDate(monday.getDate() + i);
-            dates.push(d);
+    const getChildrenAtLevel = useCallback((parentId = null) => {
+        if (!parentId) {
+            return tree.filter(n => n.type === 'FOLDER');
         }
-        return dates;
-    }, []);
 
-    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    // Load activity types on mount
-    useEffect(() => {
-        loadActivityTypes();
-    }, []);
-
-    const loadActivityTypes = async () => {
-        try {
-            const types = await nodeService.fetchActivityTypes();
-            setActivityTypes(types);
-            if (types.length > 0 && !selectedTypeId) {
-                setSelectedTypeId(types[0].id);
+        const findNode = (nodes) => {
+            for (const n of nodes) {
+                if (n.id === parentId) return n;
+                if (n.children?.length) {
+                    const found = findNode(n.children);
+                    if (found) return found;
+                }
             }
+            return null;
+        };
+
+        const parent = findNode(tree);
+        return parent?.children || [];
+    }, [tree]);
+
+    // ========================================
+    // ACTIVITY GROUPING
+    // ========================================
+
+    const activitiesByWeek = useMemo(() => {
+        const grouped = {};
+        activeWeeks.forEach(w => { grouped[w.key] = []; });
+
+        activities.forEach(act => {
+            // Parse date string safely to avoid timezone issues
+            // act.date might be '2026-02-03' - parse as local date, not UTC
+            const dateParts = act.date.split('-');
+            const actDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+            const weekStart = getMonday(actDate);
+            const key = weekStart.toISOString().split('T')[0];
+            if (grouped[key]) {
+                grouped[key].push(act);
+            }
+        });
+
+        Object.keys(grouped).forEach(k => {
+            grouped[k].sort((a, b) => new Date(b.date) - new Date(a.date));
+        });
+
+        return grouped;
+    }, [activities, activeWeeks, getMonday]);
+
+    // ========================================
+    // DATA LOADING
+    // ========================================
+
+    useEffect(() => {
+        loadData();
+    }, []);
+
+    const loadData = async () => {
+        setLoading(true);
+        try {
+            const [types, acts] = await Promise.all([
+                nodeService.fetchActivityTypes(),
+                fetchAllActivities()
+            ]);
+            setActivityTypes(types);
+            setActivities(acts);
         } catch (err) {
-            console.error('Failed to load activity types:', err);
+            console.error('Failed to load ledger data:', err);
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleCellChange = (nodeId, dayIndex, value) => {
-        const key = `${nodeId}-${dayIndex}`;
+    const fetchAllActivities = async () => {
+        const leafNodes = [];
+        const stack = [...tree];
+        while (stack.length) {
+            const node = stack.pop();
+            if (node.type === 'LEAF') leafNodes.push(node);
+            if (node.children?.length) stack.push(...node.children);
+        }
 
-        // Parse input: expect "HH:MM:Focus" or just minutes
-        const parsed = parseEntry(value);
+        const allActs = [];
+        for (const leaf of leafNodes) {
+            try {
+                const acts = await nodeService.fetchActivitiesByNode(leaf.id, 100);
+                const path = buildNodePath(leaf.id);
+                acts.forEach(a => allActs.push({
+                    ...a,
+                    nodeName: leaf.name,
+                    nodePath: path.map(n => n.name).join(' > '),
+                    pathNodes: path
+                }));
+            } catch (err) {
+                console.error(`Failed to fetch activities for ${leaf.name}:`, err);
+            }
+        }
+        return allActs;
+    };
 
-        setEntries(prev => ({
+    // ========================================
+    // WEEK & ROW MANAGEMENT
+    // ========================================
+
+    const handleAddWeek = (weekKey) => {
+        if (weekKey) {
+            setAddedWeeks(prev => new Set([...prev, weekKey]));
+            // Expand the newly added week
+            setCollapsedWeeks(prev => {
+                const next = new Set(prev);
+                next.delete(weekKey);
+                return next;
+            });
+            // Add an empty row to start entering data
+            addNewRow(weekKey);
+        }
+    };
+
+    const toggleWeek = (weekKey) => {
+        setCollapsedWeeks(prev => {
+            const next = new Set(prev);
+            if (next.has(weekKey)) next.delete(weekKey);
+            else next.add(weekKey);
+            return next;
+        });
+    };
+
+    const addNewRow = (weekKey) => {
+        const tempId = `new-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        setNewRows(prev => ({
             ...prev,
-            [key]: { raw: value, ...parsed }
+            [weekKey]: [...(prev[weekKey] || []), {
+                tempId,
+                nodePath: [],
+                leafId: '',
+                typeId: '',
+                values: {},
+                focus: 3
+            }]
         }));
     };
 
-    const parseEntry = (value) => {
-        if (!value || !value.trim()) return { duration: 0, focus: 3 };
-
-        // Format: "2:30:4" = 2h30m with focus 4
-        // Or: "90:4" = 90 minutes with focus 4
-        // Or: "90" = 90 minutes with default focus 3
-        const parts = value.split(':').map(p => p.trim());
-
-        if (parts.length === 3) {
-            // HH:MM:Focus
-            const hours = parseInt(parts[0], 10) || 0;
-            const minutes = parseInt(parts[1], 10) || 0;
-            const focus = Math.min(5, Math.max(1, parseInt(parts[2], 10) || 3));
-            return { duration: hours * 60 + minutes, focus };
-        } else if (parts.length === 2) {
-            // MM:Focus or HH:MM
-            const first = parseInt(parts[0], 10) || 0;
-            const second = parseInt(parts[1], 10) || 0;
-            // If second is <= 5, assume it's focus
-            if (second <= 5 && second >= 1) {
-                return { duration: first, focus: second };
-            }
-            // Otherwise, treat as HH:MM with default focus
-            return { duration: first * 60 + second, focus: 3 };
-        } else {
-            // Just minutes
-            const minutes = parseInt(parts[0], 10) || 0;
-            return { duration: minutes, focus: 3 };
-        }
+    const updateNewRow = (weekKey, tempId, updates) => {
+        setNewRows(prev => ({
+            ...prev,
+            [weekKey]: (prev[weekKey] || []).map(row =>
+                row.tempId === tempId ? { ...row, ...updates } : row
+            )
+        }));
     };
 
-    const handleBatchSave = async () => {
-        if (!selectedTypeId) {
-            alert('Please select an activity type first.');
+    const removeNewRow = (weekKey, tempId) => {
+        setNewRows(prev => ({
+            ...prev,
+            [weekKey]: (prev[weekKey] || []).filter(row => row.tempId !== tempId)
+        }));
+    };
+
+    const saveNewRow = async (weekKey, row) => {
+        if (!row.leafId || !row.typeId) {
+            alert('Please complete the node path and select an activity type.');
             return;
         }
 
-        const activities = [];
-
-        for (const [key, entry] of Object.entries(entries)) {
-            if (!entry.duration || entry.duration <= 0) continue;
-
-            const [nodeId, dayIndexStr] = key.split('-');
-            const dayIndex = parseInt(dayIndexStr, 10);
-            const date = weekDates[dayIndex];
-
-            if (!date || !nodeId) continue;
-
-            activities.push({
-                nodeId,
-                typeId: selectedTypeId,
-                date: date.toISOString().split('T')[0],
-                selfAssessment: entry.focus || 3,
-                values: {
-                    duration: entry.duration
-                }
-            });
-        }
-
-        if (activities.length === 0) {
-            alert('No entries to save. Enter duration values first.');
-            return;
-        }
-
-        setSaving(true);
+        setSaving(prev => ({ ...prev, [row.tempId]: true }));
         try {
-            // Save each activity
-            for (const activity of activities) {
-                await nodeService.saveActivity(activity);
-            }
+            // Save with the week's middle date (Thursday = Monday + 3 days)
+            // This ensures the activity stays within the week regardless of timezone
+            const dateParts = weekKey.split('-');
+            const monday = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
+            monday.setDate(monday.getDate() + 3); // Add 3 days to get Thursday
+            const middleDate = monday.toISOString().split('T')[0];
 
-            // Clear entries after successful save
-            setEntries({});
+            await nodeService.saveActivity({
+                nodeId: row.leafId,
+                typeId: row.typeId,
+                date: middleDate, // Save with the week's middle (Thursday)
+                selfAssessment: row.focus || 3,
+                values: row.values
+            });
+
+            removeNewRow(weekKey, row.tempId);
+            const acts = await fetchAllActivities();
+            setActivities(acts);
             onRefresh?.();
-            alert(`Saved ${activities.length} activities successfully!`);
         } catch (err) {
-            alert(err?.message || 'Failed to save activities');
+            alert(err?.message || 'Failed to save activity');
         } finally {
-            setSaving(false);
+            setSaving(prev => ({ ...prev, [row.tempId]: false }));
         }
     };
 
-    const getCellValue = (nodeId, dayIndex) => {
-        const key = `${nodeId}-${dayIndex}`;
-        return entries[key]?.raw || '';
+    const getActivityType = (typeId) => activityTypes.find(t => t.id === typeId);
+
+    // ========================================
+    // DELETE HANDLING
+    // ========================================
+
+    const handleDeleteClick = (activityId) => {
+        setDeleteModal({ isOpen: true, activityId });
     };
 
-    return (
-        <div className="calendar">
-            <header className="calendar__header">
-                <h1 className="calendar__title">Weekly Grid</h1>
-                <p className="calendar__subtitle">
-                    Batch log your sessions for the week. Format: <code>HH:MM:Focus</code> or <code>Minutes:Focus</code>
-                </p>
-            </header>
+    const confirmDelete = async () => {
+        if (!deleteModal.activityId) return;
 
-            <div className="calendar__controls">
-                <div className="calendar__control">
-                    <label>Parent Folder:</label>
-                    <select
-                        value={selectedParentId}
-                        onChange={(e) => setSelectedParentId(e.target.value)}
-                        className="calendar__select"
-                    >
-                        <option value="">Select a folder...</option>
-                        {folders.map(f => (
-                            <option key={f.id} value={f.id}>{f.path}</option>
-                        ))}
-                    </select>
-                </div>
+        try {
+            await nodeService.deleteActivity(deleteModal.activityId);
+            setActivities(prev => prev.filter(a => a.id !== deleteModal.activityId));
+            setDeleteModal({ isOpen: false, activityId: null });
+        } catch (err) {
+            alert('Failed to delete activity: ' + err.message);
+        }
+    };
 
-                <div className="calendar__control">
-                    <label>Activity Type:</label>
-                    <select
-                        value={selectedTypeId}
-                        onChange={(e) => setSelectedTypeId(e.target.value)}
-                        className="calendar__select"
-                    >
-                        <option value="">Select type...</option>
-                        {activityTypes.map(t => (
-                            <option key={t.id} value={t.id}>{t.name}</option>
+    const handleEditClick = (activity) => {
+        // Need to reconstruct the bare minimum node object for the modal
+        // activity.nodeId is available
+        // We can pass the node ID and let the modal handle it, or pass a mock node object
+        // The modal expects { id, name } mainly for history fetching.
+
+        // Find node in tree? Expensive. Simple object is enough for now as Modal fetches data by ID.
+        setEditModal({
+            isOpen: true,
+            activity: activity,
+            node: { id: activity.nodeId }
+        });
+    };
+
+    // ========================================
+    // NODE PATH SELECTOR COMPONENT
+    // ========================================
+
+    const NodePathSelector = ({ row, weekKey }) => {
+        const path = row.nodePath || [];
+
+        // Build display path from IDs
+        const displayPath = path.map(id => {
+            const findNode = (nodes) => {
+                for (const n of nodes) {
+                    if (n.id === id) return n;
+                    if (n.children?.length) {
+                        const found = findNode(n.children);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+            return findNode(tree);
+        }).filter(Boolean);
+
+        const handleSelect = (level, nodeId, isLeaf) => {
+            const newPath = [...path.slice(0, level), nodeId];
+            updateNewRow(weekKey, row.tempId, {
+                nodePath: newPath,
+                leafId: isLeaf ? nodeId : ''
+            });
+        };
+
+        // Get options for each level
+        const levels = [];
+        let currentParent = null;
+
+        for (let i = 0; i <= path.length; i++) {
+            const children = getChildrenAtLevel(currentParent);
+            if (children.length > 0) {
+                levels.push({ index: i, options: children, selectedId: path[i] });
+            }
+            currentParent = path[i];
+            if (!currentParent) break;
+        }
+
+        return (
+            <div className="node-selector">
+                {/* Breadcrumb display */}
+                {displayPath.length > 0 && (
+                    <div className="node-selector__breadcrumb">
+                        {displayPath.map((node, idx) => (
+                            <span key={node.id} className="node-selector__segment">
+                                <span className={`node-selector__badge ${node.type === 'LEAF' ? 'node-selector__badge--leaf' : ''}`}>
+                                    {node.name}
+                                </span>
+                                {idx < displayPath.length - 1 && <span className="node-selector__arrow">›</span>}
+                            </span>
                         ))}
-                    </select>
+                    </div>
+                )}
+
+                {/* Cascading dropdowns */}
+                <div className="node-selector__dropdowns">
+                    {levels.map((level, idx) => {
+                        const isLast = idx === levels.length - 1;
+                        if (displayPath[idx] && !isLast) return null;
+
+                        return (
+                            <select
+                                key={idx}
+                                className="node-selector__select"
+                                value={level.selectedId || ''}
+                                onChange={(e) => {
+                                    const selectedNode = level.options.find(n => n.id === e.target.value);
+                                    handleSelect(idx, e.target.value, selectedNode?.type === 'LEAF');
+                                }}
+                            >
+                                <option value="">
+                                    {idx === 0 ? 'Select category...' : 'Select...'}
+                                </option>
+                                {level.options.map(opt => (
+                                    <option key={opt.id} value={opt.id}>
+                                        {opt.type === 'LEAF' ? '📄 ' : '📁 '}{opt.name}
+                                    </option>
+                                ))}
+                            </select>
+                        );
+                    })}
                 </div>
             </div>
+        );
+    };
 
-            {selectedParentId && leafNodes.length === 0 && (
-                <div className="hint" style={{ marginTop: 16 }}>
-                    No leaf topics found in this folder. Add topics in the Explorer first.
-                </div>
-            )}
+    // ========================================
+    // RENDER
+    // ========================================
 
-            {leafNodes.length > 0 && (
-                <>
-                    <div className="calendar__grid-wrapper">
-                        <table className="calendar__grid">
-                            <thead>
-                                <tr>
-                                    <th className="calendar__topic-header">Topic</th>
-                                    {weekDates.map((date, i) => (
-                                        <th key={i} className="calendar__day-header">
-                                            <div className="calendar__day-label">{dayLabels[i]}</div>
-                                            <div className="calendar__day-date">
-                                                {date.getDate()}/{date.getMonth() + 1}
+    if (loading) {
+        return (
+            <div className="ledger">
+                <div className="hint">Loading activity ledger...</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="ledger" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <header className="ledger__header">
+                <h1 className="ledger__title">Activity Ledger</h1>
+                <p className="ledger__subtitle">Hierarchical log of study sessions by week</p>
+            </header>
+
+            {/* Week Groups */}
+            <div className="ledger__content">
+                {activeWeeks.map(week => {
+                    const isCollapsed = collapsedWeeks.has(week.key);
+                    const weekActivities = activitiesByWeek[week.key] || [];
+                    const weekNewRows = newRows[week.key] || [];
+                    const totalCount = weekActivities.length + weekNewRows.length;
+
+                    return (
+                        <div key={week.key} className="ledger__week">
+                            {/* Week Header */}
+                            <div className="ledger__week-header" onClick={() => toggleWeek(week.key)}>
+                                <span className="ledger__week-chevron">
+                                    {isCollapsed ? <ChevronRightIcon size={16} /> : <ChevronDownIcon size={16} />}
+                                </span>
+                                <span className="ledger__week-label">{week.label}</span>
+                                <span className="ledger__week-badge">Week {week.weekNumber}</span>
+                                <span className="ledger__week-count">{totalCount} entries</span>
+                                <button
+                                    className="ledger__add-btn"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        addNewRow(week.key);
+                                    }}
+                                >
+                                    <PlusIcon size={12} /> Add
+                                </button>
+                            </div>
+
+                            {/* Week Body */}
+                            {!isCollapsed && (
+                                <div className="ledger__week-body">
+                                    {weekActivities.length === 0 && weekNewRows.length === 0 && (
+                                        <div className="ledger__empty">No activities this week</div>
+                                    )}
+
+                                    {/* Existing Activities */}
+                                    {weekActivities.map(act => {
+                                        const type = getActivityType(act.typeId);
+                                        return (
+                                            <div key={act.id} className="ledger__row ledger__row--saved">
+                                                <div className="ledger__cell ledger__cell--path">
+                                                    <span className="ledger__path-text">{act.nodePath}</span>
+                                                </div>
+                                                <div className="ledger__cell ledger__cell--type">
+                                                    <span className="badge badge--type">{type?.name || 'Unknown'}</span>
+                                                </div>
+                                                <div className="ledger__cell ledger__cell--attrs">
+                                                    {type?.attributes?.map(attr => {
+                                                        const val = act.values?.[attr.id] || act.values?.[attr.name];
+                                                        if (!val) return null;
+                                                        return (
+                                                            <span key={attr.id} className="ledger__attr-chip">
+                                                                {attr.name}: {val}
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <div className="ledger__cell ledger__cell--focus">
+                                                    <span className={`focus-badge focus-badge--${act.selfAssessment || 3}`}>
+                                                        {act.selfAssessment || 3}/5
+                                                    </span>
+                                                </div>
+                                                <div className="ledger__cell ledger__cell--actions">
+                                                    <button
+                                                        className="ledger__action-btn"
+                                                        title="Edit"
+                                                        onClick={() => handleEditClick(act)}
+                                                    >
+                                                        <EditIcon size={14} />
+                                                    </button>
+                                                    <button
+                                                        className="ledger__action-btn ledger__action-btn--delete"
+                                                        title="Delete"
+                                                        onClick={() => handleDeleteClick(act.id)}
+                                                    >
+                                                        <DeleteIcon size={14} />
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {leafNodes.map(node => (
-                                    <tr key={node.id}>
-                                        <td className="calendar__topic-cell">{node.name}</td>
-                                        {weekDates.map((_, dayIndex) => (
-                                            <td key={dayIndex} className="calendar__input-cell">
-                                                <input
-                                                    type="text"
-                                                    className="calendar__input"
-                                                    placeholder="0:0:3"
-                                                    value={getCellValue(node.id, dayIndex)}
-                                                    onChange={(e) => handleCellChange(node.id, dayIndex, e.target.value)}
-                                                />
-                                            </td>
-                                        ))}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                        );
+                                    })}
 
-                    <div className="calendar__actions">
-                        <button
-                            className="btn btn--primary"
-                            onClick={handleBatchSave}
-                            disabled={saving}
-                        >
-                            {saving ? 'Saving...' : 'Batch Save Week'}
-                        </button>
-                        <span className="hint" style={{ marginLeft: 12 }}>
-                            {Object.keys(entries).filter(k => entries[k]?.duration > 0).length} entries ready
-                        </span>
-                    </div>
-                </>
+                                    {/* New Rows */}
+                                    {weekNewRows.map(row => (
+                                        <div key={row.tempId} className="ledger__row ledger__row--new">
+                                            <div className="ledger__cell ledger__cell--path-select">
+                                                <NodePathSelector row={row} weekKey={week.key} />
+                                            </div>
+                                            <div className="ledger__cell ledger__cell--type">
+                                                <select
+                                                    className="ledger__select"
+                                                    value={row.typeId}
+                                                    onChange={e => updateNewRow(week.key, row.tempId, { typeId: e.target.value, values: {} })}
+                                                >
+                                                    <option value="">Select type...</option>
+                                                    {activityTypes.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="ledger__cell ledger__cell--attrs">
+                                                {row.typeId && getActivityType(row.typeId)?.attributes?.map(attr => (
+                                                    <input
+                                                        key={attr.id}
+                                                        type={attr.dataType === 'number' ? 'number' : 'text'}
+                                                        className="ledger__input"
+                                                        placeholder={`${attr.name}${attr.isNullable ? '' : '*'}`}
+                                                        value={row.values[attr.id] || ''}
+                                                        onChange={e => updateNewRow(week.key, row.tempId, {
+                                                            values: { ...row.values, [attr.id]: e.target.value }
+                                                        })}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <div className="ledger__cell ledger__cell--focus">
+                                                <select
+                                                    className="ledger__select ledger__select--focus"
+                                                    value={row.focus}
+                                                    onChange={e => updateNewRow(week.key, row.tempId, { focus: parseInt(e.target.value) })}
+                                                >
+                                                    {[1, 2, 3, 4, 5].map(n => (
+                                                        <option key={n} value={n}>{n}/5</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="ledger__cell ledger__cell--actions">
+                                                <button
+                                                    className="ledger__action-btn ledger__action-btn--save"
+                                                    onClick={() => saveNewRow(week.key, row)}
+                                                    disabled={saving[row.tempId]}
+                                                >
+                                                    <SaveIcon size={14} />
+                                                </button>
+                                                <button
+                                                    className="ledger__action-btn ledger__action-btn--delete"
+                                                    onClick={() => removeNewRow(week.key, row.tempId)}
+                                                >
+                                                    <DeleteIcon size={14} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Footer - Week Picker */}
+            <footer className="ledger__footer">
+                <span className="ledger__record-count">{activities.length} records</span>
+                <div className="ledger__week-picker-wrapper">
+                    <button
+                        className="ledger__week-picker-btn"
+                        onClick={() => setShowWeekPicker(!showWeekPicker)}
+                    >
+                        <PlusIcon size={14} />
+                        Add Week
+                        <ChevronDownIcon size={14} />
+                    </button>
+                    {showWeekPicker && (
+                        <div className="ledger__week-picker-dropdown">
+                            {availableWeeks
+                                .filter(w => !activeWeeks.some(aw => aw.key === w.key))
+                                .map(w => (
+                                    <button
+                                        key={w.key}
+                                        className="ledger__week-picker-item"
+                                        onClick={() => {
+                                            handleAddWeek(w.key);
+                                            setShowWeekPicker(false);
+                                        }}
+                                    >
+                                        <span className="ledger__week-picker-item-label">
+                                            Week {w.weekNumber}
+                                        </span>
+                                        <span className="ledger__week-picker-item-date">
+                                            {w.label}
+                                        </span>
+                                    </button>
+                                ))}
+                            {availableWeeks.filter(w => !activeWeeks.some(aw => aw.key === w.key)).length === 0 && (
+                                <div className="ledger__week-picker-empty">All weeks already added</div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </footer>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                isOpen={deleteModal.isOpen}
+                title="Delete Activity"
+                description="Are you sure you want to delete this activity? This action cannot be undone."
+                variant="danger"
+                confirmLabel="Delete"
+                cancelLabel="Cancel"
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteModal({ isOpen: false, activityId: null })}
+            />
+
+
+            {/* Edit Modal */}
+            {editModal.isOpen && (
+                <EditActivityModal
+                    isOpen={editModal.isOpen}
+                    onClose={() => setEditModal({ isOpen: false, activity: null, node: null })}
+                    activity={editModal.activity}
+                    activityTypes={activityTypes}
+                    onSave={async () => {
+                        const acts = await fetchAllActivities();
+                        setActivities(acts);
+                        onRefresh?.();
+                    }}
+                />
             )}
         </div>
     );

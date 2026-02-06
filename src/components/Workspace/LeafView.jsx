@@ -3,7 +3,7 @@ import { Breadcrumbs } from '../Workspace'; // Assuming Breadcrumbs is exported 
 import { statsService } from '../../services/statsService';
 import { nodeService } from '../../services/nodeService';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { LogActivityModal } from '../LogActivityModal';
+
 import { CreateActivityTypeModal } from '../CreateActivityTypeModal';
 import { minutesToTimeStr, formatDate } from '../../utils/time';
 
@@ -28,7 +28,7 @@ export const LeafView = ({ node, onRefresh }) => {
     const [activityTypes, setActivityTypes] = useState([]);
     const [activities, setActivities] = useState([]); // Recent acts for list
 
-    const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+
     const [isCreateTypeModalOpen, setIsCreateTypeModalOpen] = useState(false);
 
     useEffect(() => {
@@ -124,18 +124,16 @@ export const LeafView = ({ node, onRefresh }) => {
                 </div>
             </div>
 
-            {/* Actions & Recent */}
-            <div className="card">
-                <div className="card__title">Actions</div>
-                {!hasTypes ? (
+            {/* Actions (Only for setup now) */}
+            {!hasTypes && (
+                <div className="card">
+                    <div className="card__title">Setup</div>
                     <div className="stack">
                         <div className="empty">No activity types configured.</div>
                         <button className="btn btn--secondary" onClick={() => setIsCreateTypeModalOpen(true)}>Create Type</button>
                     </div>
-                ) : (
-                    <button className="btn" onClick={() => setIsLogModalOpen(true)}>Log Session</button>
-                )}
-            </div>
+                </div>
+            )}
 
             <div className="card">
                 <div className="card__title">Recent Activity</div>
@@ -158,14 +156,6 @@ export const LeafView = ({ node, onRefresh }) => {
                     })}
                 </ul>
             </div>
-
-            <LogActivityModal
-                isOpen={isLogModalOpen}
-                onClose={() => setIsLogModalOpen(false)}
-                node={node}
-                activityTypes={activityTypes}
-                onSave={handleSaved}
-            />
 
             <CreateActivityTypeModal
                 isOpen={isCreateTypeModalOpen}

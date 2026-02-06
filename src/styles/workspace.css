@@ -391,188 +391,538 @@
 .focus-badge--1 { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
 
 /* ========================================
-   CALENDAR MODULE
+   SMART ACTIVITY LEDGER - CARD LAYOUT
    ======================================== */
-.calendar {
-  padding: 24px;
-  overflow-y: auto;
-  flex: 1;
+.ledger {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
-.calendar__header {
-  margin-bottom: 24px;
+.ledger__header {
+  padding: 20px 24px 16px;
+  flex-shrink: 0;
 }
 
-.calendar__title {
-  font-size: 24px;
+.ledger__title {
+  font-size: 22px;
   font-weight: 700;
   color: var(--text);
-  margin: 0 0 8px;
+  margin: 0 0 4px;
 }
 
-.calendar__subtitle {
-  font-size: 14px;
+.ledger__subtitle {
+  font-size: 13px;
   color: var(--muted);
   margin: 0;
 }
 
-.calendar__subtitle code {
-  background: var(--surface);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 12px;
-}
-
-.calendar__controls {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-}
-
-.calendar__control {
+/* Week Groups Container */
+.ledger__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 24px 24px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
 }
 
-.calendar__control label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-
-.calendar__select {
-  padding: 8px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 14px;
-  min-width: 220px;
-}
-
-.calendar__select:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.calendar__grid-wrapper {
-  overflow-x: auto;
-  margin-bottom: 20px;
-}
-
-.calendar__grid {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 700px;
-}
-
-.calendar__grid th,
-.calendar__grid td {
-  border: 1px solid var(--border);
-  padding: 0;
-  text-align: center;
-}
-
-.calendar__topic-header {
-  text-align: left !important;
-  padding: 12px 16px !important;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  background: var(--surface);
-  min-width: 160px;
-}
-
-.calendar__day-header {
-  padding: 10px 8px !important;
-  background: var(--surface);
-  min-width: 80px;
-}
-
-.calendar__day-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.calendar__day-date {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 2px;
-}
-
-.calendar__topic-cell {
-  text-align: left !important;
-  padding: 12px 16px !important;
-  font-weight: 500;
-  color: var(--text);
+/* Week Card */
+.ledger__week {
   background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 
-.calendar__input-cell {
-  padding: 0 !important;
-  background: var(--card);
-}
-
-.calendar__input {
-  width: 100%;
-  padding: 12px 8px;
-  background: transparent;
-  border: none;
-  text-align: center;
-  font-size: 13px;
-  color: var(--text);
-  font-family: 'Consolas', 'Monaco', monospace;
-}
-
-.calendar__input:focus {
-  outline: none;
-  background: rgba(99, 102, 241, 0.08);
-}
-
-.calendar__input::placeholder {
-  color: var(--muted);
-  opacity: 0.5;
-}
-
-.calendar__actions {
+.ledger__week-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 16px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
 }
 
-.btn--primary {
+.ledger__week-header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ledger__week-chevron {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+
+.ledger__week-label {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.ledger__week-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(99, 102, 241, 0.12);
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+
+.ledger__week-count {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.ledger__add-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
   background: var(--accent);
   color: #fff;
   border: none;
-  padding: 10px 20px;
   border-radius: 6px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
-.btn--primary:hover {
+.ledger__add-btn:hover {
   background: var(--accent-strong);
 }
 
-.btn--primary:disabled {
-  opacity: 0.6;
+.ledger__week-body {
+  padding: 12px;
+}
+
+.ledger__empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Activity Rows */
+.ledger__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: background 0.1s ease;
+}
+
+.ledger__row:last-child {
+  margin-bottom: 0;
+}
+
+.ledger__row--saved {
+  background: transparent;
+}
+
+.ledger__row--saved:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ledger__row--new {
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px dashed var(--border);
+}
+
+/* Row Cells */
+.ledger__cell {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.ledger__cell--path {
+  flex: 1;
+  min-width: 0;
+}
+
+.ledger__cell--path-select {
+  flex: 1;
+  min-width: 200px;
+}
+
+.ledger__path-text {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ledger__cell--type {
+  min-width: 100px;
+}
+
+.ledger__cell--attrs {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 120px;
+}
+
+.ledger__cell--focus {
+  min-width: 60px;
+  justify-content: center;
+}
+
+.ledger__cell--actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Node Selector */
+.node-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.node-selector__breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.node-selector__segment {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.node-selector__badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent);
+}
+
+.node-selector__badge--leaf {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+.node-selector__arrow {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.node-selector__dropdowns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.node-selector__select {
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.node-selector__select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Inputs & Selects */
+.ledger__select {
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 100px;
+}
+
+.ledger__select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.ledger__select--focus {
+  min-width: 65px;
+  text-align: center;
+}
+
+.ledger__input {
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  max-width: 100px;
+}
+
+.ledger__input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Attribute Chips */
+.ledger__attr-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--surface);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Badges */
+.badge--type {
+  display: inline-flex;
+  padding: 5px 12px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Action Buttons */
+.ledger__action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ledger__action-btn--save {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.ledger__action-btn--save:hover {
+  background: rgba(34, 197, 94, 0.25);
+}
+
+.ledger__action-btn--save:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-[data-theme="light"] .ledger-table tr:hover td {
+.ledger__action-btn--delete {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.ledger__action-btn--delete:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Footer */
+.ledger__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.ledger__record-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Week Picker Dropdown */
+.ledger__week-picker-wrapper {
+  position: relative;
+}
+
+.ledger__week-picker-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ledger__week-picker-btn:hover {
+  background: var(--accent-strong);
+}
+
+.ledger__week-picker-dropdown {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 8px;
+  min-width: 260px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 100;
+}
+
+.ledger__week-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s ease;
+  text-align: left;
+}
+
+.ledger__week-picker-item:last-child {
+  border-bottom: none;
+}
+
+.ledger__week-picker-item:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.ledger__week-picker-item-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ledger__week-picker-item-date {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ledger__week-picker-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Light Theme */
+[data-theme="light"] .ledger__week-header:hover {
   background: rgba(0, 0, 0, 0.02);
 }
 
-[data-theme="light"] .calendar__input:focus {
-  background: rgba(99, 102, 241, 0.05);
+[data-theme="light"] .ledger__row--saved:hover {
+  background: rgba(0, 0, 0, 0.02);
 }
+
+[data-theme="light"] .ledger__row--new {
+  background: rgba(99, 102, 241, 0.04);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .ledger__content {
+    padding: 0 12px 12px;
+  }
+  
+  .ledger__header {
+    padding: 16px 12px;
+  }
+  
+  .ledger__row {
+    flex-wrap: wrap;
+  }
+  
+  .ledger__cell--attrs {
+    width: 100%;
+    margin-top: 8px;
+  }
+}
+
+@media (max-width: 600px) {
+  .ledger__footer {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .ledger__week-picker {
+    width: 100%;
+  }
+  
+  .ledger__week-header {
+    flex-wrap: wrap;
+  }
+  
+  .ledger__add-btn {
+    width: 100%;
+    justify-content: center;
+    margin-top: 8px;
+  }
+}
+
+
+/* Action Buttons */
+.ledger__action-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.ledger__action-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+  opacity: 1;
+}
+
+.ledger__action-btn--save {
+  color: var(--success);
+  opacity: 1;
+}
+
+.ledger__action-btn--save:hover {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.ledger__action-btn--delete:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+

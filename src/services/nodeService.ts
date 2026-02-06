@@ -533,5 +533,19 @@ export const nodeService = {
             console.error('[nodeService] Error: moveNode failed', error);
             throw error;
         }
+    },
+
+    /**
+     * Deletes a single activity record.
+     */
+    async deleteActivity(activityId: string): Promise<void> {
+        try {
+            if (!pb.authStore.isValid) throw new Error('Not authenticated');
+            assert(isNonEmptyString(activityId), 'activityId is required');
+            await pb.collection('activities').delete(activityId);
+        } catch (error) {
+            console.error('[nodeService] Error: deleteActivity failed', error);
+            throw error;
+        }
     }
 };

@@ -79,3 +79,28 @@ export const ExplorerIcon = ({ size = 20, strokeWidth = 1.5, ...props }) => (
     <path d="M7 13h4M7 16h7" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
   </svg>
 );
+
+export const ChevronDownIcon = ({ size = 16, strokeWidth = 2, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const ChevronRightIcon = ({ size = 16, strokeWidth = 2, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const PlusIcon = ({ size = 16, strokeWidth = 2, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+  </svg>
+);
+
+export const SaveIcon = ({ size = 16, strokeWidth = 1.5, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <path d="M12.5 14H3.5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h7l3 3v8a1 1 0 0 1-1 1Z" stroke="currentColor" strokeWidth={strokeWidth} />
+    <path d="M5 14v-4h6v4M5 2v3h4" stroke="currentColor" strokeWidth={strokeWidth} />
+  </svg>
+);
